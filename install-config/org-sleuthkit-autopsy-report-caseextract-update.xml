@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?><module codename="org.sleuthkit.autopsy.report.caseextract/1">
+    <module_version install_time="1744664299115" last="true" origin="installer" specification_version="1.0">
+        <file crc="763042963" name="config/Modules/org-sleuthkit-autopsy-report-caseextract.xml"/>
+        <file crc="3113557078" name="modules/org-sleuthkit-autopsy-report-caseextract.jar"/>
+    </module_version>
+</module>

@@ -1,0 +1,3 @@
+org.sleuthkit.autopsy.report.modules.datasourcesummaryexport.DataSourceSummaryReport
+org.sleuthkit.autopsy.report.modules.taggedhashes.SaveTaggedHashesToHashDb
+org.sleuthkit.autopsy.report.caseextract.CaseDataExtractReportModule

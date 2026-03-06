@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE filesystem PUBLIC "-//NetBeans//DTD Filesystem 1.2//EN" "http://www.netbeans.org/dtds/filesystem-1.2.dtd">
+<filesystem>
+    <folder name="Menu">
+        <folder name="Window">
+            <file name="org-sleuthkit-autopsy-report-caseextract-OpenCaseDataExtractMonitorAction.instance">
+                <attr name="instanceClass" stringvalue="org.sleuthkit.autopsy.report.caseextract.OpenCaseDataExtractMonitorAction"/>
+            </file>
+        </folder>
+    </folder>
+    <folder name="Services">
+        <file name="org-sleuthkit-autopsy-report-caseextract-CaseDataExtractReportModule.instance">
+            <attr name="instanceOf" stringvalue="org.sleuthkit.autopsy.report.GeneralReportModule"/>
+            <attr name="instanceCreate" methodvalue="org.sleuthkit.autopsy.report.caseextract.CaseDataExtractReportModule.getDefault"/>
+            <attr name="position" intvalue="912"/>
+        </file>
+    </folder>
+</filesystem>

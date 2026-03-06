@@ -1,0 +1,503 @@
+# Autopsy Case Data Extract Plugin — Wiki
+
+> **Autopsy 4.22.1** forensic audit plugin · Java 17 · Core JAR patch installation
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Features In Detail](#features-in-detail)
+  - [Operation Log](#operation-log)
+  - [JSON Report Export](#json-report-export)
+  - [Image Integrity Verification](#image-integrity-verification)
+- [How Data Is Obtained](#how-data-is-obtained)
+- [Installation Guide](#installation-guide)
+  - [Prerequisites](#prerequisites)
+  - [Step 1 — Copy the Original Core JAR](#step-1--copy-the-original-core-jar)
+  - [Step 2 — Build](#step-2--build)
+  - [Step 3 — Install](#step-3--install)
+  - [Uninstalling](#uninstalling)
+- [Usage Guide](#usage-guide)
+  - [Opening the Status Window](#opening-the-status-window)
+  - [Operations Log Tab](#operations-log-tab)
+  - [Image Integrity Tab](#image-integrity-tab)
+  - [Generating a Report](#generating-a-report)
+  - [Report JSON Structure](#report-json-structure)
+- [Project Structure](#project-structure)
+- [Why Core JAR Patching?](#why-core-jar-patching)
+- [Known Limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Development Notes](#development-notes)
+
+---
+
+## Overview
+
+**Case Data Extract** is a plugin for the [Autopsy](https://www.sleuthkit.org/autopsy/) digital forensics platform that provides automated forensic audit logging and integrity verification.
+
+In a real-world forensic investigation, proving **chain of custody** requires answering questions like:
+
+- Who opened this case, and when?
+- What operations were performed and by whom?
+- Has the evidence image been modified since it was first examined?
+- What was the state of every file inside the image at the time of examination?
+
+This plugin answers all of those questions automatically, without requiring any manual steps from the examiner.
+
+---
+
+## Architecture
+
+    ┌─────────────────────────────────────────────────────────┐
+    │                   Autopsy 4.22.1                        │
+    │                                                         │
+    │  Case Events ──► CaseEventRecorder ──► case_extract_    │
+    │  (open/close,     (listener +           events.json     │
+    │   add source,      operation log)       (in case dir)   │
+    │   add report…)         │                                │
+    │                        │ on case open                   │
+    │                        ▼                                │
+    │                 Background Thread                       │
+    │                 (hash physical                          │
+    │                  image files)                           │
+    │                        │                                │
+    │  Tools →               │ results                        │
+    │  Generate Report       ▼                                │
+    │       │        CaseDataExtractMonitorTopComponent       │
+    │       │        ┌─────────────┬──────────────────┐      │
+    │       │        │ Operations  │ Image Integrity   │      │
+    │       │        │ Log         │ (live hash check) │      │
+    │       │        └─────────────┴──────────────────┘      │
+    │       ▼                                                 │
+    │  CaseDataExtractReportModule                            │
+    │  → case_data_extract.json                               │
+    │    (case meta + op log + data source hashes +           │
+    │     full file listing + aggregate SHA-256)              │
+    └─────────────────────────────────────────────────────────┘
+
+---
+
+## Features In Detail
+
+### Operation Log
+
+Every significant case event is automatically recorded with a timestamp, the active examiner name, and a detail string:
+
+| Event Type | Triggered When |
+|---|---|
+| `CASE_OPENED` | A case is opened (including auto-restore on startup) |
+| `CASE_CLOSED` | A case is closed |
+| `DATA_SOURCE_ADDED` | An image or logical file set is added |
+| `ADDING_DATA_SOURCE` | Data source ingestion begins |
+| `ADDING_DATA_SOURCE_FAILED` | Data source ingestion fails |
+| `REPORT_ADDED` | Any report is generated |
+| `CASE_DETAILS` | Case metadata is edited |
+| `INTEGRITY_FAIL` | Image file hash does not match the stored reference |
+
+The log is written to **`<case directory>/case_extract_events.json`** after every event, so it is preserved even if Autopsy crashes.
+
+---
+
+### JSON Report Export
+
+Triggered via **Tools → Generate Report → Case Data Extract Report**.
+
+The report is written to:
+
+    <case directory>/Reports/<run label>/CaseDataExtract/case_data_extract.json
+
+It contains five sections:
+
+1. **Case metadata** — Case ID, display name, examiner, creation date
+2. **Operation log** — Full audit trail from `case_extract_events.json`
+3. **Data sources** — Physical paths, MD5, and SHA-256 for every image/logical source
+4. **File listing** — Every file in the image (allocated, unallocated, deleted, carved) with full metadata
+5. **Aggregate hash** — A single SHA-256 covering all of the above
+
+The aggregate hash is computed over the entire JSON body (with the hash fields themselves set to empty strings), so any modification to any part of the report — including any single file entry — will invalidate it.
+
+---
+
+### Image Integrity Verification
+
+Every time a case is opened, the plugin automatically:
+
+1. Searches for the most recently generated `case_data_extract.json` report in the case's `Reports/` directory
+2. Extracts the reference SHA-256 for each data source from that report
+3. Spawns a **background thread** that reads every physical image file byte-by-byte and computes a fresh SHA-256
+4. Compares the result against the reference and updates the **Image Integrity** tab in the status window
+
+The status column shows one of:
+
+| Status | Meaning |
+|---|---|
+| `Checking… 45%` | Hash computation in progress |
+| `OK — integrity verified` | File hash matches the reference |
+| `TAMPERED — hash mismatch!` | Hash differs — the image file may have been modified |
+| `No reference hash — first run or no report generated yet` | No previous report to compare against |
+| `Error: file not found — <path>` | The image file is missing from its stored path |
+
+If a mismatch is detected, an `INTEGRITY_FAIL` event is also appended to the operation log for audit purposes.
+
+> **Note on image formats:**
+> For raw (`dd` / `img`) images, the physical file hash and the logical disk content hash are identical, so the comparison is straightforward.
+> For EnCase (`E01`) images, the stored database hash covers the logical disk content while the freshly computed hash covers the E01 container bytes — these will not match. For E01, use the **report hash** as the reference: generate a report once immediately after adding the data source, then use the Image Integrity tab on all subsequent case opens.
+
+---
+
+## How Data Is Obtained
+
+All data comes from **Autopsy's Java API**. The plugin never reads `case.db` directly; it uses the object-oriented wrappers that Autopsy provides.
+
+    case.db (SQLite)
+    ├── tsk_image_info  ──► Image.getPaths()
+    │                        Image.getMd5()
+    │                        Image.getSha256()
+    │
+    └── tsk_files       ──► SleuthkitCase.findAllFilesWhere("1=1")
+                             AbstractFile.getName()
+                             AbstractFile.getUniquePath()
+                             AbstractFile.getSize()
+                             AbstractFile.getCrtime() / getMtime() / getAtime() / getCtime()
+                             AbstractFile.isDirNameFlagSet(UNALLOC)   → deleted?
+                             AbstractFile.isMetaFlagSet(ALLOC)        → allocated?
+                             AbstractFile.getKnown()                  → NSRL match?
+                             AbstractFile.getMIMEType()
+                             AbstractFile.getMd5Hash()
+                             AbstractFile.getSha256Hash()
+
+    Case metadata (*.aut XML)
+                       ──► Case.getNumber()       → Case ID
+                            Case.getExaminer()     → Examiner name
+                            Case.getCreatedDate()  → Creation timestamp
+                            Case.getDisplayName()  → Display name
+
+    Operation log      ──► Plugin records events itself via
+                            Case.addEventTypeSubscriber(...)
+                            Written to: <case dir>/case_extract_events.json
+
+    Physical image bytes ──► FileInputStream (used ONLY for integrity verification,
+                              not for any API-provided hash)
+
+---
+
+## Installation Guide
+
+### Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Autopsy | 4.22.1 installed at `C:\Program Files\Autopsy-4.22.1\` |
+| OS | Windows 10 / 11 (build scripts are `.bat`) |
+| Permissions | Administrator rights for installation |
+
+No separate JDK installation is needed — the build script uses the JDK bundled with Autopsy.
+
+---
+
+### Step 1 — Copy the Original Core JAR
+
+The original Autopsy core JAR is **not included** in this repository (it is copyrighted Sleuth Kit software). You must copy it manually:
+
+**Source:**
+
+    C:\Program Files\Autopsy-4.22.1\autopsy\modules\org-sleuthkit-autopsy-core.jar
+
+**Destination:**
+
+    <project root>\patch\core.jar
+
+This only needs to be done once per machine.
+
+---
+
+### Step 2 — Build
+
+Double-click **`build-patch-core.bat`** in the project root, or run it from PowerShell:
+
+    .\build-patch-core.bat
+
+The script performs five steps automatically:
+
+    [1/5] Compiling Java sources...
+    [2/5] Extracting ORIGINAL core JAR (patch\core.jar)...
+    [3/5] Copying plugin classes into core...
+    [4/5] Patching layer.xml...
+    [4b/5] Patching META-INF/services...
+    [5/5] Repackaging core JAR (preserving original manifest)...
+    [OK] Patched core: patch\org-sleuthkit-autopsy-core-patched.jar
+
+Output: `patch\org-sleuthkit-autopsy-core-patched.jar`
+
+---
+
+### Step 3 — Install
+
+**Close Autopsy completely**, then:
+
+1. Right-click **`INSTALL-AS-ADMIN.bat`**
+2. Choose **Run as administrator**
+3. Press any key when prompted
+
+The installer will:
+
+- Back up the original JAR as `org-sleuthkit-autopsy-core.jar.bak`
+- Copy the patched JAR into Autopsy's modules directory
+- Clear the NetBeans platform cache
+
+Start Autopsy — the plugin is now active.
+
+---
+
+### Uninstalling
+
+To restore Autopsy to its original state, run the following in an Administrator PowerShell:
+
+    Copy-Item "C:\Program Files\Autopsy-4.22.1\autopsy\modules\org-sleuthkit-autopsy-core.jar.bak" `
+              "C:\Program Files\Autopsy-4.22.1\autopsy\modules\org-sleuthkit-autopsy-core.jar" -Force
+
+Then clear the NetBeans cache by running `clear-cache-and-restart.bat`.
+
+---
+
+## Usage Guide
+
+### Opening the Status Window
+
+Two ways to open the status window:
+
+- **Toolbar**: Click the plugin icon in the main toolbar (same row as Keyword Search)
+- **Menu**: Window → Case Data Extract Status
+
+The window docks like any other Autopsy panel and auto-refreshes every 2 seconds.
+
+---
+
+### Operations Log Tab
+
+Displays a live table of all recorded events:
+
+| Column | Content |
+|---|---|
+| Time | `yyyy-MM-dd HH:mm:ss` timestamp |
+| Action | Event type (e.g. `CASE_OPENED`, `DATA_SOURCE_ADDED`) |
+| Operator | Examiner name from the Case object |
+| Detail | Context-specific information |
+
+The table is sortable by clicking any column header.
+
+---
+
+### Image Integrity Tab
+
+Displays one row per image data source:
+
+| Column | Content |
+|---|---|
+| Image | Data source name |
+| File Path | Physical path of the first image segment |
+| Status | Current check result (see status table above) |
+| File SHA-256 (computed) | Fresh hash computed from the physical file |
+| Reference SHA-256 (report) | Hash from the last exported report, or `[DB]` if no report exists |
+
+> **Recommended workflow:**
+> 1. Add data source to Autopsy (Autopsy computes the DB hash)
+> 2. Generate a Case Data Extract Report immediately
+> 3. On every subsequent case open, the Image Integrity tab will compare against that report
+
+---
+
+### Generating a Report
+
+1. Open a case in Autopsy
+2. Go to **Tools → Generate Report**
+3. Select **Case Data Extract Report**
+4. Choose an output directory and click **Generate**
+
+Progress is shown in the report wizard. For cases with many files the file listing step may take several minutes.
+
+---
+
+### Report JSON Structure
+
+    {
+      "caseId": "2024-001",
+      "caseDisplayName": "Example Case",
+      "examiner": "J. Smith",
+      "createdDate": "2026-01-15 09:00:00",
+
+      "operations": [
+        {
+          "time": "2026-01-15 09:01:23",
+          "action": "CASE_OPENED",
+          "operator": "J. Smith",
+          "detail": "Example Case | OS user: jsmith"
+        },
+        {
+          "time": "2026-01-15 09:02:05",
+          "action": "DATA_SOURCE_ADDED",
+          "operator": "J. Smith",
+          "detail": "evidence.dd"
+        }
+      ],
+
+      "dataSources": [
+        {
+          "name": "evidence.dd",
+          "paths": ["C:\\Evidence\\evidence.dd"],
+          "md5":    "d41d8cd98f00b204e9800998ecf8427e",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb924..."
+        }
+      ],
+
+      "files": [
+        {
+          "name":      "document.docx",
+          "path":      "/img_evidence.dd/vol_vol1/Users/jsmith/Documents/document.docx",
+          "size":      24576,
+          "created":   "2025-11-01 14:23:00",
+          "modified":  "2025-12-10 09:45:11",
+          "accessed":  "2026-01-15 09:02:08",
+          "changed":   "2025-12-10 09:45:11",
+          "isDir":     false,
+          "deleted":   false,
+          "allocated": true,
+          "known":     "unknown",
+          "mimeType":  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "md5":       "...",
+          "sha256":    "..."
+        }
+      ],
+
+      "aggregateHash":     "a1b2c3d4...",
+      "aggregateHashNote": "SHA-256 of this JSON with aggregateHash and aggregateHashNote empty (UTF-8)"
+    }
+
+The **`aggregateHash`** is the SHA-256 of the entire JSON string with both the `aggregateHash` and `aggregateHashNote` fields set to `""`. Any change to any field — including any single file's metadata or hash — will produce a different aggregate hash.
+
+---
+
+## Project Structure
+
+    project root/
+    │
+    ├── src/                                         ← All plugin Java source code
+    │   ├── META-INF/
+    │   │   ├── MANIFEST.MF                          ← Module metadata
+    │   │   └── services/
+    │   │       └── org.sleuthkit.autopsy.report.GeneralReportModule
+    │   │                                            ← SPI service declaration
+    │   └── org/sleuthkit/autopsy/report/caseextract/
+    │       ├── CaseEventRecorder.java               ← Event listener + operation log
+    │       │                                           + image integrity check engine
+    │       ├── CaseDataExtractReportModule.java     ← Report generation (JSON export)
+    │       ├── CaseDataExtractMonitorTopComponent.java  ← Status window UI
+    │       ├── OpenCaseDataExtractMonitorAction.java    ← Toolbar/menu action
+    │       ├── Bundle.properties                    ← UI strings
+    │       └── resources/layer.xml                  ← NetBeans layer registration
+    │
+    ├── install-config/
+    │   ├── core-layer-patched.xml                   ← Autopsy core layer.xml (patched)
+    │   └── core-GeneralReportModule-services.txt    ← SPI entry injected into core JAR
+    │
+    ├── patch/
+    │   ├── core.jar                                 ← (NOT in git) Original Autopsy core JAR
+    │   └── org-sleuthkit-autopsy-core-patched.jar   ← (NOT in git) Build output
+    │
+    ├── build-patch-core.bat    ← Main build script
+    ├── INSTALL-AS-ADMIN.bat    ← Installation script (requires Administrator)
+    ├── clear-cache-and-restart.bat  ← Cache clearing utility
+    └── README.md
+
+---
+
+## Why Core JAR Patching?
+
+Standard NetBeans module installation (`.nbm` packages via the Plugin Manager) does not work in Autopsy 4.22 because of three compounding restrictions:
+
+**1. Custom `AutoupdateInfoParser`**
+
+Autopsy's bundled parser does not recognise all standard NBM XML elements (`licenses`, `module-dependencies`). Any NBM built with standard tools is rejected with a parse error before it can even be installed.
+
+**2. `ProxyClassLoader` restriction**
+
+Autopsy's classloader only loads modules that are part of its internal registry. Placing a JAR in the `modules/` directory without going through the full NetBeans module registration pipeline (cache files, manifests, module config XML) is simply ignored at runtime.
+
+**3. Cache validation**
+
+NetBeans Platform caches all module metadata in binary files (`all-layers.dat`, `all-manifests.dat`, etc.). Adding files to the directory does not invalidate the cache; the platform reads from cache and never sees the new JAR until the cache is explicitly cleared.
+
+**The solution** adopted by this plugin is to inject the plugin code directly into `org-sleuthkit-autopsy-core.jar`, Autopsy's primary module. From the platform's perspective, the plugin classes have always been part of the core module — so the classloader, service registration, and UI layer registration all work through the normal trusted path.
+
+---
+
+## Known Limitations
+
+| Limitation | Detail |
+|---|---|
+| Windows only | Build and install scripts are `.bat`. The Java code itself is platform-neutral. |
+| Autopsy 4.22.1 specific | The core JAR patching is tied to this exact version. A different version may have a different core JAR structure. |
+| E01 integrity check | For E01 images, the freshly computed file hash covers the E01 container, not the logical disk content. Use the report hash (not the DB hash) as the reference for E01 verification. |
+| File hashes require prior ingestion | MD5/SHA-256 in the file listing are populated only if Autopsy's Hash Lookup ingest module was run. If it was not run, these fields will be empty strings. |
+| Large cases are slow | The file listing step queries every row in `tsk_files`. For images with millions of files this step can take tens of minutes. |
+
+---
+
+## Troubleshooting
+
+### The status window shows "Waiting for image data sources…" immediately after case open
+
+This resolves itself within a few seconds as the background integrity check initialises. If it persists after 10 seconds, verify that the case contains at least one Image-type data source (not just a logical file set).
+
+### The report fails with "Failed to write report"
+
+Check that the output directory chosen in the report wizard is writable. The plugin writes to `<chosen dir>/CaseDataExtract/case_data_extract.json`.
+
+### No data appears in either tab after reopening Autopsy
+
+The NetBeans cache may be stale. Run `clear-cache-and-restart.bat` and reopen Autopsy.
+
+### The plugin does not appear in Tools → Generate Report
+
+1. Confirm `INSTALL-AS-ADMIN.bat` was run as Administrator and completed without errors
+2. Run `clear-cache-and-restart.bat`
+3. Check Autopsy logs: **Help → Open Log Folder** → `messages.log`, search for `caseextract`
+
+### Finding Autopsy logs
+
+| Method | Path |
+|---|---|
+| Menu | Autopsy → Help → Open Log Folder |
+| Manual | `%APPDATA%\autopsy\var\log\` |
+| Key files | `autopsy.log.0`, `messages.log` |
+| Search terms | `caseextract`, `SEVERE`, `Exception` |
+
+---
+
+## Development Notes
+
+### Adding a new event type to the operation log
+
+In `CaseEventRecorder.java`, add the event to the `EnumSet` in `registerListenerIfNeeded()`:
+
+    Case.addEventTypeSubscriber(EnumSet.of(
+        Case.Events.CURRENT_CASE,
+        Case.Events.DATA_SOURCE_ADDED,
+        Case.Events.YOUR_NEW_EVENT,   // add here
+        ...
+    ), new CaseEventListener());
+
+### Rebuilding after source changes
+
+    1. Close Autopsy
+    2. Run build-patch-core.bat
+    3. Run INSTALL-AS-ADMIN.bat  (as Administrator)
+    4. Start Autopsy
+
+### Adding new fields to the JSON report
+
+Edit `CaseDataExtractReportModule.java`. The report is assembled as a `StringBuilder` in `generateReport()`. Add new `report.append(...)` calls where appropriate. If the new fields should be covered by the aggregate hash (they should be), make sure they appear before the hash computation block near the end of the method.
+
+---
+
+*This plugin was developed as part of a dissertation project on forensic data integrity. It is not affiliated with or endorsed by the Autopsy or Sleuth Kit projects.*

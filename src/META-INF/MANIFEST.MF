@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+OpenIDE-Module: org.sleuthkit.autopsy.report.caseextract
+OpenIDE-Module-Name: Case Data Extract
+OpenIDE-Module-Specification-Version: 1.0
+OpenIDE-Module-Implementation-Version: 1.0
+OpenIDE-Module-Layer: org/sleuthkit/autopsy/report/caseextract/resources/layer.xml
+OpenIDE-Module-Module-Dependencies: org.sleuthkit.autopsy.core > 1, org.openide.util > 1

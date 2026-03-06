@@ -1,0 +1,10 @@
+# 复制此文件为 build.properties 并修改 autopsy.platform 为你的 Autopsy 安装路径
+# 这样构建时无需每次传入 -Dautopsy.platform=...
+#
+# Windows 示例:
+# autopsy.platform=C:\\Program Files\\Autopsy\\platform
+#
+# 或使用 ZIP 解压路径:
+# autopsy.platform=D:\\Autopsy-4.22.0\\platform
+
+autopsy.platform=C:\\Program Files\\Autopsy-4.22.1\\platform

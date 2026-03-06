@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module codenamebase="org.sleuthkit.autopsy.report.caseextract" homepage="" downloadsize="0" release="1" needsrestart="true">
+    <manifest AutoUpdate-Name="Case Data Extract" AutoUpdate-Essential-Module="false" AutoUpdate-Show-In-Client="true" OpenIDE-Module="org.sleuthkit.autopsy.report.caseextract" OpenIDE-Module-Implementation-Version="1.0" OpenIDE-Module-Name="Case Data Extract" OpenIDE-Module-Specification-Version="1.0"/>
+    <module-dependencies>
+        <dependency>
+            <module codenamebase="org.sleuthkit.autopsy.core"/>
+        </dependency>
+        <dependency>
+            <module codenamebase="org.openide.util"/>
+        </dependency>
+    </module-dependencies>
+</module>

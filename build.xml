@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="CaseDataExtract" default="jar" basedir=".">
+    <description>Autopsy Case Data Extract Plugin - 案件数据提取报告模块</description>
+
+    <!-- Autopsy 平台路径：优先从 build.properties 或 -D 参数读取 -->
+    <property file="build.properties"/>
+    <property name="autopsy.platform" value="C:\Program Files\Autopsy-4.22.1\platform"/>
+    <property name="src.dir" value="src"/>
+    <property name="build.dir" value="build"/>
+    <property name="dist.dir" value="dist"/>
+    <property name="dist.jar" value="${dist.dir}/CaseDataExtract.jar"/>
+    <property name="nbm.jar" value="${dist.dir}/org-sleuthkit-autopsy-report-caseextract.jar"/>
+    <property name="nbm.dir" value="${dist.dir}/nbm"/>
+    <property name="nbm.file" value="${dist.dir}/CaseDataExtract.nbm"/>
+
+    <!-- Autopsy 根目录（platform 的上一级），用于包含 autopsy/modules 下的 JAR -->
+    <property name="autopsy.home" value="${autopsy.platform}/.."/>
+    <!-- 从 platform 和 autopsy/modules 收集所有 JAR 作为编译 classpath -->
+    <path id="autopsy.cp">
+        <fileset dir="${autopsy.platform}" includes="**/*.jar" erroronmissingdir="false"/>
+        <fileset dir="${autopsy.home}/autopsy" includes="**/*.jar" erroronmissingdir="false"/>
+    </path>
+
+    <target name="check-platform" description="检查 Autopsy 平台路径是否存在">
+        <available file="${autopsy.platform}" type="dir" property="platform.exists"/>
+        <fail unless="platform.exists" message="Autopsy 平台路径不存在: ${autopsy.platform}。请通过 -Dautopsy.platform=你的路径 指定，例如: ant -Dautopsy.platform=&quot;C:\Program Files\Autopsy\platform&quot; jar"/>
+    </target>
+
+    <target name="compile" depends="check-platform" description="Compile Java sources">
+        <mkdir dir="${build.dir}/classes"/>
+        <javac srcdir="${src.dir}" destdir="${build.dir}/classes" source="17" target="17"
+               includeantruntime="false" encoding="UTF-8">
+            <compilerarg value="-proc:none"/>
+            <classpath refid="autopsy.cp"/>
+        </javac>
+        <copy todir="${build.dir}/classes" failonerror="false">
+            <fileset dir="${src.dir}" excludes="**/*.java"/>
+        </copy>
+    </target>
+
+    <target name="-do-jar" depends="compile">
+        <mkdir dir="${dist.dir}"/>
+        <jar destfile="${dist.jar}" basedir="${build.dir}/classes" manifest="${src.dir}/META-INF/MANIFEST.MF"/>
+    </target>
+
+    <target name="jar" depends="compile,-do-jar"/>
+
+    <target name="nbm" depends="jar" description="Create NBM for Autopsy plugin installation">
+        <copy file="${dist.jar}" tofile="${nbm.jar}"/>
+        <mkdir dir="${nbm.dir}"/>
+        <mkdir dir="${nbm.dir}/Info"/>
+        <mkdir dir="${nbm.dir}/netbeans/modules"/>
+        <mkdir dir="${nbm.dir}/netbeans/config/Modules"/>
+        <copy file="${nbm.jar}" todir="${nbm.dir}/netbeans/modules"/>
+        <copy file="nbm/Info/info.xml" todir="${nbm.dir}/Info"/>
+        <copy file="nbm/netbeans/config/Modules/org.sleuthkit.autopsy.report.caseextract.xml" todir="${nbm.dir}/netbeans/config/Modules"/>
+        <zip destfile="${nbm.file}" basedir="${nbm.dir}"/>
+        <delete dir="${nbm.dir}"/>
+        <echo message="NBM created: ${nbm.file}"/>
+        <echo message="Install via: Tools - Plugins - Downloaded - Add Plugins"/>
+    </target>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="clean-build" depends="clean,jar"/>
+</project>
