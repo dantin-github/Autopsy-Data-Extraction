@@ -62,20 +62,6 @@ Output: `patch\org-sleuthkit-autopsy-core-patched.jar`
 
 ---
 
-## Installation
-
-1. **Close Autopsy completely**
-2. Right-click `INSTALL-AS-ADMIN.bat` → **Run as administrator**
-3. Press any key when prompted
-4. **Start Autopsy** — the plugin is active immediately
-
-The installer:
-- Backs up the original core JAR as `org-sleuthkit-autopsy-core.jar.bak`
-- Copies the patched JAR into Autopsy's modules directory
-- Clears the NetBeans platform cache so changes take effect on next launch
-
----
-
 ## Usage
 
 ### Status window
