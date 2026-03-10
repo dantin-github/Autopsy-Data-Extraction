@@ -36,10 +36,17 @@ tmp_bak2/
 *.bat
 
 # -------------------------------------------------------
+# Blockchain module (local certs and build output)
+# -------------------------------------------------------
+blockchain/target/
+blockchain/conf/
+
+# -------------------------------------------------------
 # IDE / OS artefacts
 # -------------------------------------------------------
 .DS_Store
 Thumbs.db
 *.iml
 .idea/
+.vscode/
 nbproject/private/

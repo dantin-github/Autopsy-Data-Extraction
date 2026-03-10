@@ -169,6 +169,39 @@ a data source, then use the Image Integrity tab on all subsequent case opens.
 
 ---
 
+## Blockchain Module (Case Data Integrity)
+
+The project includes a **blockchain module** for storing case data hashes on a FISCO BCOS chain, providing tamper-evident integrity verification.
+
+### Overview
+
+| Component | Description |
+|-----------|-------------|
+| `blockchain/` | Java SDK module — hash computation, private store, chain write/query |
+| `blockchain-setup/` | Setup scripts — WSL, FISCO BCOS 4-node chain, WeBASE |
+
+### Hash-Only Storage
+
+Only hashes are stored on chain; full case records remain in private off-chain storage (`~/.case_record_store.json`). WeBASE and chain queries see only hashes, not plaintext.
+
+- **index_hash** = SHA256(case_id) — primary key for lookup
+- **record_hash** = SHA256(full record) — integrity verification
+
+### Two-Party Modification
+
+Modifications require **police proposal + court approval**. Only after both agree can the police execute the update. See `blockchain-setup/TWO-PARTY-MODIFICATION.md`.
+
+### Quick Start
+
+1. **Setup chain** (WSL): `bash blockchain-setup/2-setup-fisco.sh`
+2. **Create table** in console: `create table t_case_hash(index_hash varchar, record_hash varchar, primary key(index_hash))`
+3. **Generate insert** from Java: `cd blockchain && mvn exec:java -Phash-only`
+4. **Optional WeBASE**: `bash blockchain-setup/3-setup-webase.sh` → http://localhost:5000
+
+See `blockchain/README.md` and `blockchain-setup/README.md` for details.
+
+---
+
 ## License
 
 This plugin is provided for research and academic use. It is independent of
