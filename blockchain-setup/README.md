@@ -72,7 +72,7 @@ cd /mnt/d/Dissertation/Data\ extraction/blockchain-setup
 bash 3-setup-webase.sh
 ```
 
-Then open http://localhost:5000 (login: admin / Abcd1234).
+Then open http://localhost:5000 (login: admin / Abcd1234). If nodes show 0 or you see "user not logged in" when using the API, add the front via the Web UI (Chain Management → add node) or see [WEBASE-WEB-AUTH.md](WEBASE-WEB-AUTH.md).
 
 ## Commands
 
