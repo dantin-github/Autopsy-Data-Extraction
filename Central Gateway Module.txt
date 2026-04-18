@@ -1,0 +1,31 @@
+Central Gateway Module 
+Built on Node.js/Express, the module exposes a unified REST interface to other modules. It acts as the trust hub for the system, responsible for the unified login entry point, role identification, authorisation token generation, email delivery, upload-request reception, and query-request reception. By placing the investigator’s write request and the judge’s verification request into one authorisation and routing framework, it ensures that each role faces different access paths and function boundaries when entering the system. This design prevents coupling identity verification, permission judgment, and request control into Autopsy or a blockchain platform.  
+
+3.5.5 Token-Based Authentication Framework
+As the entry point of the system, an appropriate security mechanism for access control and authentication is necessary. The design principle in this study comes from the simulation of real judicial systems, where the investigators cannot conduct forensic activities concerning a case without a valid authorisation credential issued by a supervising authority. The token design in this system technically simulates the authentication process. Furthermore, a role-based authorisation mechanism is also realised with this design. Tokens assigned to investigators and judges decide the write or read-only access for each role, corresponding to the investigative and oversight authority of different legal institutions.
+Two authentication paths are configured for investigators and judges/auditors in this system. For the former, a time-limited random OTP token is generated and sent after the initial portal login. Every subsequent transaction from the Autopusy plugin will carry this token to authenticate itself at the API gateway. Once the token expires, it cannot be reused. For the latter, a similar token logic with read-only authorisation is implemented, and no write interface will be exposed to this type of user.
+The security design of this research considers basic security requirements as the goal, trying to balance cryptographic complexity and platform performance. Advanced mechanisms, such as asymmetric encryption, can be introduced in production deployment if needed. Nevertheless, the additional security improvements will not substantially influence the research questions in this study.
+
+建桥 —— 统一认证门户与 API 中间件
+目标：实现角色分流（RBAC）和链下到链上的数据通道。
+
+模块 2.1：搭建静态登录页面 (Portal)
+
+动作：用 Node.js + Express 建立 http://localhost:3000/login，包含账号密码输入框。
+
+模块 2.2：开发“法官”分流逻辑
+
+动作：当识别到法官账号登录时，后端直接触发 URL 重定向。
+
+验证：输入法官账号，浏览器瞬间跳到 http://localhost:8501（暂时打不开没关系，跳转动作成功即可）。
+
+模块 2.3：开发“警察”分流与发信逻辑
+
+动作：当识别到警察账号登录时，生成随机 16 位 Token，利用 nodemailer 发送至工作邮箱。
+
+验证：输入警察账号，手机立刻收到一封包含 Token 的测试邮件。
+
+模块 2.4：打通 API 与区块链 (最关键的一步)
+
+动作：API 新增 /api/upload 接口。它收到带有合法 Token 的数据后，调用SDK 写入区块链。
+

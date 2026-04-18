@@ -1,0 +1,23 @@
+[
+  {
+    "userId": "u-police-1",
+    "username": "officer1",
+    "email": "police1@example.com",
+    "role": "police",
+    "passwordPlain": "demo-police-1"
+  },
+  {
+    "userId": "u-police-2",
+    "username": "officer2",
+    "email": "police2@example.com",
+    "role": "police",
+    "passwordPlain": "demo-police-2"
+  },
+  {
+    "userId": "u-judge-1",
+    "username": "judge1",
+    "email": "judge1@example.com",
+    "role": "judge",
+    "passwordPlain": "demo-judge-1"
+  }
+]
