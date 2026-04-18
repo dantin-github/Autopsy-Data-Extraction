@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0a0e14" />
+    <title>Case Gateway — Sign in</title>
+    <style>
+      /* Design tokens (Carbon/Prism-inspired: spacing scale, focus, contrast) */
+      :root {
+        --bg-deep: #06080c;
+        --bg: #0a0e14;
+        --surface: #111820;
+        --surface-2: #161d27;
+        --border: #2a3544;
+        --border-strong: #3d4f63;
+        --text: #e8edf4;
+        --text-muted: #8b98a8;
+        --accent: #3dd6f5;
+        --accent-dim: rgba(61, 214, 245, 0.14);
+        --danger: #f87171;
+        --radius: 10px;
+        --radius-sm: 6px;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+        --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+        --step: 4px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: var(--font);
+        background: var(--bg-deep);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Subtle forensic grid + vignette (no external assets) */
+      .backdrop {
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: calc(var(--step) * 8);
+        background:
+          radial-gradient(ellipse 120% 80% at 50% -20%, rgba(61, 214, 245, 0.08), transparent 55%),
+          radial-gradient(ellipse 80% 50% at 100% 100%, rgba(30, 58, 95, 0.35), transparent 50%),
+          linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 40%, #070a10 100%),
+          repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 31px,
+            rgba(255, 255, 255, 0.02) 31px,
+            rgba(255, 255, 255, 0.02) 32px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 31px,
+            rgba(255, 255, 255, 0.02) 31px,
+            rgba(255, 255, 255, 0.02) 32px
+          );
+      }
+
+      .panel {
+        width: min(100%, 420px);
+        background: linear-gradient(165deg, var(--surface) 0%, var(--surface-2) 100%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: calc(var(--step) * 8) calc(var(--step) * 7);
+        animation: rise 0.45s ease-out;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .brand {
+        display: flex;
+        align-items: flex-start;
+        gap: calc(var(--step) * 4);
+        margin-bottom: calc(var(--step) * 7);
+      }
+
+      .mark {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-sm);
+        background: var(--accent-dim);
+        border: 1px solid rgba(61, 214, 245, 0.35);
+        display: grid;
+        place-items: center;
+      }
+
+      .mark svg {
+        width: 24px;
+        height: 24px;
+        stroke: var(--accent);
+        fill: none;
+        stroke-width: 1.75;
+      }
+
+      .brand h1 {
+        margin: 0 0 calc(var(--step) * 1);
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        line-height: 1.3;
+      }
+
+      .brand p {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: calc(var(--step) * 3);
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-dim);
+        border: 1px solid rgba(61, 214, 245, 0.25);
+        font-family: var(--font-mono);
+      }
+
+      .badge::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+      }
+
+      label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: calc(var(--step) * 2);
+      }
+
+      .field {
+        margin-bottom: calc(var(--step) * 5);
+      }
+
+      input[type='text'],
+      input[type='password'] {
+        width: 100%;
+        padding: calc(var(--step) * 3) calc(var(--step) * 4);
+        font-size: 0.9375rem;
+        font-family: var(--font-mono);
+        color: var(--text);
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      input::placeholder {
+        color: #5c6775;
+      }
+
+      input:hover {
+        border-color: var(--border-strong);
+      }
+
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-dim);
+      }
+
+      .actions {
+        margin-top: calc(var(--step) * 6);
+      }
+
+      button[type='submit'] {
+        width: 100%;
+        padding: calc(var(--step) * 3.5) calc(var(--step) * 4);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        font-family: var(--font);
+        color: #041014;
+        background: linear-gradient(180deg, #5ee7ff 0%, var(--accent) 100%);
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: filter 0.15s ease, transform 0.08s ease;
+      }
+
+      button[type='submit']:hover {
+        filter: brightness(1.06);
+      }
+
+      button[type='submit']:active {
+        transform: translateY(1px);
+      }
+
+      button[type='submit']:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      button[type='submit']:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        filter: none;
+      }
+
+      .banner {
+        display: none;
+        margin-bottom: calc(var(--step) * 5);
+        padding: calc(var(--step) * 3) calc(var(--step) * 4);
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+        line-height: 1.45;
+      }
+
+      .banner.error {
+        display: block;
+        color: #fecaca;
+        background: rgba(248, 113, 113, 0.12);
+        border: 1px solid rgba(248, 113, 113, 0.35);
+      }
+
+      .banner.ok {
+        display: block;
+        color: #a7f3d0;
+        background: rgba(52, 211, 153, 0.12);
+        border: 1px solid rgba(52, 211, 153, 0.35);
+      }
+
+      .foot {
+        margin-top: calc(var(--step) * 7);
+        padding-top: calc(var(--step) * 5);
+        border-top: 1px solid var(--border);
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+        font-family: var(--font-mono);
+      }
+
+      .foot strong {
+        color: #a8b4c4;
+        font-weight: 600;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .panel {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backdrop">
+      <main class="panel" aria-labelledby="title">
+        <div class="brand">
+          <div class="mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 3 4 7v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V7l-8-4Z" />
+              <path d="M9 12.5 11 14.5 15.5 10" />
+            </svg>
+          </div>
+          <div>
+            <h1 id="title">Central Gateway</h1>
+            <p>Authenticated access to case hash services and chain-backed evidence workflows.</p>
+            <span class="badge">Digital forensics</span>
+          </div>
+        </div>
+
+        <div id="msg" class="banner" role="status" aria-live="polite"></div>
+
+        <form id="form" method="post" action="/login" novalidate>
+          <div class="field">
+            <label for="username">Operator ID</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autocomplete="username"
+              required
+              minlength="1"
+              placeholder="e.g. officer1"
+            />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              minlength="1"
+              placeholder="••••••••"
+            />
+          </div>
+          <div class="actions">
+            <button type="submit" id="submit">Sign in</button>
+          </div>
+        </form>
+
+        <footer class="foot">
+          <strong>Restricted.</strong> Access is logged and subject to organizational policy. Use only for authorized
+          investigations.
+        </footer>
+      </main>
+    </div>
+    <script>
+      (function () {
+        var form = document.getElementById('form');
+        var msg = document.getElementById('msg');
+        var submit = document.getElementById('submit');
+
+        function show(kind, text) {
+          msg.className = 'banner ' + kind;
+          msg.textContent = text;
+        }
+
+        function clear() {
+          msg.className = 'banner';
+          msg.textContent = '';
+        }
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          clear();
+
+          var u = document.getElementById('username').value.trim();
+          var p = document.getElementById('password').value;
+          if (!u || !p) {
+            show('error', 'Enter operator ID and password.');
+            return;
+          }
+
+          submit.disabled = true;
+          fetch('/login', {
+            method: 'POST',
+            redirect: 'manual',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ username: u, password: p })
+          })
+            .then(function (r) {
+              if (r.status === 302 || r.status === 301) {
+                var loc = r.headers.get('Location');
+                if (loc) {
+                  window.location.href = loc;
+                  return;
+                }
+                show('error', 'Redirect response missing Location.');
+                return;
+              }
+              return r.json().then(function (body) {
+                return { status: r.status, body: body };
+              });
+            })
+            .then(function (x) {
+              if (!x) return;
+              if (x.status === 200 && x.body && x.body.status === 'redirect' && x.body.location) {
+                window.location.href = x.body.location;
+                return;
+              }
+              if (x.status === 200 && x.body && x.body.status === 'otp_sent') {
+                show(
+                  'ok',
+                  'One-time code sent to your work email. Check the inbox (and spam). The code is not shown in the browser.'
+                );
+                return;
+              }
+              if (x.status === 401) {
+                show('error', 'Invalid operator ID or password.');
+                return;
+              }
+              var err = (x.body && x.body.error) || 'Sign-in failed.';
+              show('error', err);
+            })
+            .catch(function () {
+              show('error', 'Network error. Try again.');
+            })
+            .finally(function () {
+              submit.disabled = false;
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

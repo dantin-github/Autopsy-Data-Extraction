@@ -21,7 +21,7 @@ before(() => {
 test('verifyCredentials accepts correct password', async () => {
   const userStore = require('../src/services/userStore');
   userStore.clearCache();
-  const u = await userStore.verifyCredentials('officer1', 'demo-police-1');
+  const u = await userStore.verifyCredentials('officer1', '1');
   assert.ok(u);
   assert.strictEqual(u.userId, 'u-police-1');
   assert.strictEqual(u.role, 'police');
@@ -38,6 +38,6 @@ test('verifyCredentials rejects wrong password', async () => {
 test('verifyCredentials rejects unknown user', async () => {
   const userStore = require('../src/services/userStore');
   userStore.clearCache();
-  const u = await userStore.verifyCredentials('nope', 'demo-police-1');
+  const u = await userStore.verifyCredentials('nope', '1');
   assert.strictEqual(u, null);
 });
