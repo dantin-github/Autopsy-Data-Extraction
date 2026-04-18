@@ -1,10 +1,14 @@
 'use strict';
 
+const os = require('os');
 const path = require('path');
 
 require('dotenv').config();
 
 const nodeEnv = process.env.NODE_ENV || 'development';
+const enableDebugRoutes =
+  nodeEnv !== 'production' ||
+  ['1', 'true', 'yes'].includes(String(process.env.ENABLE_DEBUG_ROUTES || '').toLowerCase());
 const port = Number(process.env.PORT) || 3000;
 const rawSecret = process.env.SESSION_SECRET;
 const sessionSecret = rawSecret != null ? String(rawSecret).trim() : '';
@@ -50,8 +54,23 @@ const otpTtlMsRaw = Number(process.env.OTP_TTL_MS);
 const otpTtlMs =
   Number.isFinite(otpTtlMsRaw) && otpTtlMsRaw > 0 ? otpTtlMsRaw : 10 * 60 * 1000;
 
+function resolveRecordStorePath() {
+  const raw = process.env.RECORD_STORE_PATH;
+  if (raw != null && String(raw).trim() !== '') {
+    const s = String(raw).trim();
+    if (s === '~' || s.startsWith('~/')) {
+      return s === '~' ? os.homedir() : path.join(os.homedir(), s.slice(2));
+    }
+    return path.resolve(process.cwd(), s);
+  }
+  return path.join(os.homedir(), '.case_record_store.json');
+}
+
+const recordStorePath = resolveRecordStorePath();
+
 module.exports = {
   nodeEnv,
+  enableDebugRoutes,
   port,
   sessionSecret,
   usersFilePath,
@@ -63,5 +82,6 @@ module.exports = {
   smtpUser,
   smtpPass,
   smtpFrom,
-  otpTtlMs
+  otpTtlMs,
+  recordStorePath
 };

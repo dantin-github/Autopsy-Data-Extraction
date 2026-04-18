@@ -5,6 +5,8 @@ const express = require('express');
 const session = require('express-session');
 const config = require('./config');
 const authRouter = require('./routes/auth');
+const requireJudgeSession = require('./middleware/requireJudgeSession');
+const requirePoliceToken = require('./middleware/requirePoliceToken');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 function createApp() {
@@ -33,9 +35,17 @@ function createApp() {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
-  if (config.nodeEnv !== 'production') {
+  if (config.enableDebugRoutes) {
     app.get('/__throw', (req, res, next) => {
       next(new Error('deliberate test error'));
+    });
+
+    app.get('/__police-only', requirePoliceToken, (req, res) => {
+      res.json({ ok: true, userId: req.policeUserId });
+    });
+
+    app.get('/__judge-only', requireJudgeSession, (req, res) => {
+      res.json({ ok: true, userId: req.judgeUserId });
     });
   }
 

@@ -8,6 +8,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed-users": "node scripts/seed-users.js",
+    "hash-compare": "node scripts/hash-compare-demo.js",
+    "generate-hash-samples": "node scripts/generate-hash-samples.js",
+    "generate-record-store-fixture": "node scripts/generate-record-store-fixture.js",
     "test": "node --test ./test/**/*.test.js"
   },
   "engines": {

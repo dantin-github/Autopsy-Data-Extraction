@@ -2,6 +2,7 @@ package org.dissertation.blockchain;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -10,6 +11,11 @@ import java.util.Locale;
 /**
  * Standalone integrity verifier. No chain connection needed.
  * Verifies that aggregateHash matches SHA-256 of JSON with hash fields empty.
+ * <p>
+ * Serialization uses {@link JSON#toJSONString(Object, SerializerFeature...)} with
+ * {@link SerializerFeature#MapSortField} so key order is deterministic (matches Node
+ * {@code integrity.js}). Use {@code JSON.toJSONString}, not {@code JSONObject#toJSONString}
+ * with a single {@code SerializerFeature} — the latter resolves to the wrong overload.
  */
 public class IntegrityVerifier {
 
@@ -21,7 +27,8 @@ public class IntegrityVerifier {
         }
         json.put("aggregateHash", "");
         json.put("aggregateHashNote", "");
-        String forHash = json.toJSONString();
+        // Use JSON.toJSONString — JSONObject.toJSONString(SerializerFeature) hits the wrong overload.
+        String forHash = JSON.toJSONString(json, SerializerFeature.MapSortField);
         String computed = sha256Hex(forHash.getBytes(StandardCharsets.UTF_8));
         return computed.equalsIgnoreCase(storedHash);
     }
@@ -30,7 +37,8 @@ public class IntegrityVerifier {
         JSONObject json = JSON.parseObject(caseDataJson);
         json.put("aggregateHash", "");
         json.put("aggregateHashNote", "");
-        return sha256Hex(json.toJSONString().getBytes(StandardCharsets.UTF_8));
+        String canonical = JSON.toJSONString(json, SerializerFeature.MapSortField);
+        return sha256Hex(canonical.getBytes(StandardCharsets.UTF_8));
     }
 
     private static String sha256Hex(byte[] data) throws Exception {
