@@ -1,0 +1,38 @@
+diff --git a/node_modules/fisco-bcos/package.json b/node_modules/fisco-bcos/package.json
+index 74296d1..ce869a9 100644
+--- a/node_modules/fisco-bcos/package.json
++++ b/node_modules/fisco-bcos/package.json
+@@ -24,7 +24,6 @@
+     "npm": ">=5.6.0"
+   },
+   "scripts": {
+-    "postinstall": "npm run bootstrap",
+     "bootstrap": "npm run install-solc-0.4 && npm run install-solc-0.5",
+     "install-solc-0.4": "cd ./lib/compile/compilers/solc-0.4 && npm install",
+     "install-solc-0.5": "cd ./lib/compile/compilers/solc-0.5 && npm install",
+diff --git a/node_modules/fisco-bcos/lib/common/network/channelPromise.js b/node_modules/fisco-bcos/lib/common/network/channelPromise.js
+index 4605760..f622f3c 100644
+--- a/node_modules/fisco-bcos/lib/common/network/channelPromise.js
++++ b/node_modules/fisco-bcos/lib/common/network/channelPromise.js
+@@ -178,8 +178,7 @@ function createNewSocket(ip, port, authentication) {
+     let secureContextOptions = {
+         key: fs.readFileSync(authentication.key),
+         cert: fs.readFileSync(authentication.cert),
+-        ca: fs.readFileSync(authentication.ca),
+-        ecdhCurve: 'secp256k1',
++        ca: fs.readFileSync(authentication.ca)
+     };
+ 
+     let secureContext = tls.createSecureContext(secureContextOptions);
+@@ -190,7 +189,10 @@ function createNewSocket(ip, port, authentication) {
+     let clientOptions = {
+         rejectUnauthorized: false,
+         secureContext,
+-        socket
++        socket,
++        minVersion: 'TLSv1.2',
++        maxVersion: 'TLSv1.2',
++        ecdhCurve: 'secp256k1'
+     };
+ 
+     let tlsSocket = tls.connect(clientOptions);

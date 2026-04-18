@@ -68,6 +68,26 @@ function resolveRecordStorePath() {
 
 const recordStorePath = resolveRecordStorePath();
 
+function resolveFiscoConfigPath() {
+  const raw = process.env.FISCO_CONFIG;
+  if (raw != null && String(raw).trim() !== '') {
+    const s = String(raw).trim();
+    if (s === '~' || s.startsWith('~/')) {
+      return s === '~' ? os.homedir() : path.join(os.homedir(), s.slice(2));
+    }
+    return path.resolve(process.cwd(), s);
+  }
+  return path.join(__dirname, '..', 'conf', 'fisco-config.json');
+}
+
+const fiscoConfigPath = resolveFiscoConfigPath();
+
+/** On-chain user table for hash-only storage (see blockchain-setup/HASH-ONLY-CHAIN.md). */
+const caseHashTableName =
+  process.env.CASE_HASH_TABLE != null && String(process.env.CASE_HASH_TABLE).trim() !== ''
+    ? String(process.env.CASE_HASH_TABLE).trim()
+    : 't_case_hash';
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -83,5 +103,7 @@ module.exports = {
   smtpPass,
   smtpFrom,
   otpTtlMs,
-  recordStorePath
+  recordStorePath,
+  fiscoConfigPath,
+  caseHashTableName
 };

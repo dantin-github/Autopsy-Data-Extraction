@@ -47,6 +47,19 @@ blockchain/conf/
 tools/apache-maven-*/
 
 # -------------------------------------------------------
+# API gateway: local chain certs (from npm run copy-chain-certs)
+# -------------------------------------------------------
+api-gateway/conf/sdk.key
+api-gateway/conf/sdk.crt
+api-gateway/conf/ca.crt
+api-gateway/conf/fisco-config.json
+api-gateway/conf/accounts/*.pem
+
+# Local npm tarball / scratch (do not commit)
+api-gateway/fisco-bcos-*.tgz
+api-gateway/package/
+
+# -------------------------------------------------------
 # IDE / OS artefacts
 # -------------------------------------------------------
 .DS_Store

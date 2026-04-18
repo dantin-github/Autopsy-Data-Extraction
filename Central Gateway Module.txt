@@ -29,3 +29,15 @@ The security design of this research considers basic security requirements as th
 
 动作：API 新增 /api/upload 接口。它收到带有合法 Token 的数据后，调用SDK 写入区块链。
 
+阶段 3 — 链集成（计划与进度）
+
+[x] [P2] recordStore 与 Java 互通。验收：Java 写 Node 读、Node 写 Java 读双向通
+
+[x] [P3] 3.1 证书就位 + fisco-config.json。验收：npm run verify:chain-certs（或 openssl x509 查 sdk.crt 有效期）
+
+[x] [P3] 3.2 ping-chain.js。验收：链与控制台就绪后，npm run ping-chain 输出的块高与 FISCO console 的 getBlockNumber 一致
+
+[ ] [P3] 3.3 chain.js CRUD 封装 insert/select。验收：node -e 调用拿 txHash
+
+[ ] [P3] 3.4 POST /api/upload。验收：WeBASE 见交易、t_case_hash 命中（当前未实现，按 plan 在 S3.3 之后做）
+
