@@ -5,6 +5,7 @@ const express = require('express');
 const session = require('express-session');
 const config = require('./config');
 const authRouter = require('./routes/auth');
+const uploadRouter = require('./routes/upload');
 const requireJudgeSession = require('./middleware/requireJudgeSession');
 const requirePoliceToken = require('./middleware/requirePoliceToken');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
@@ -50,6 +51,7 @@ function createApp() {
   }
 
   app.use(authRouter);
+  app.use(uploadRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

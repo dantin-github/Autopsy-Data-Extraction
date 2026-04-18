@@ -21,7 +21,7 @@ if (!process.env.SESSION_SECRET) {
 const chain = require('../src/services/chain');
 
 const DEFAULT_RECORD_HASH =
-  '0x7ac537786088963fc39c3e9901ae2fbb91a4380ddfad6ae10f93c26f6ae6358b';
+  '0xe7ebe7d768bc5c49a50facb716e42a026a041ca230929106a77e539f7d8a27de';
 
 (async () => {
   const recordHash = (process.argv[2] || DEFAULT_RECORD_HASH).trim();

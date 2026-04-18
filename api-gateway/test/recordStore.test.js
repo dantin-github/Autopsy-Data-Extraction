@@ -89,3 +89,13 @@ test('Node write then read (fresh file)', () => {
   assert.ok(g);
   assert.strictEqual(JSON.parse(g).case_id, 'N-1');
 });
+
+test('remove(caseId) deletes entry', () => {
+  const storePath = tmpStorePath();
+  const store = createRecordStore({ storePath });
+  store.save('DEL-1', '{"a":1}', 'a'.repeat(64), 'e', 't');
+  assert.ok(store.exists('DEL-1'));
+  store.remove('DEL-1');
+  assert.strictEqual(store.get('DEL-1'), null);
+  assert.strictEqual(store.exists('DEL-1'), false);
+});

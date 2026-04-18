@@ -56,6 +56,15 @@ function createRecordStore(options = {}) {
       return this.get(caseId) != null;
     },
 
+    remove(caseId) {
+      const id = nz(caseId);
+      const store = loadStore();
+      if (Object.prototype.hasOwnProperty.call(store, id)) {
+        delete store[id];
+        writeStore(store);
+      }
+    },
+
     /**
      * Two overloads (same as Java CaseRecordStore):
      * - save(caseId, fullRecordJson)

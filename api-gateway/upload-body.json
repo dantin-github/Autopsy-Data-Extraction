@@ -1,0 +1,7 @@
+{
+  "caseId": "demo-case-001",
+  "examiner": "officer1",
+  "aggregateHash": "bdc29ad869ff718417c5c82f9ccedfeb01557df8bd1d8b52bd13c3c1abca4886",
+  "generatedAt": "2026-04-18T12:00:00.000Z",
+  "caseJson": "{\"caseId\":\"demo-case-001\",\"examiner\":\"officer1\",\"aggregateHash\":\"bdc29ad869ff718417c5c82f9ccedfeb01557df8bd1d8b52bd13c3c1abca4886\",\"aggregateHashNote\":\"SHA-256 of body\"}"
+}

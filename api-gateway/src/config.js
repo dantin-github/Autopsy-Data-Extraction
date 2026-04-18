@@ -50,9 +50,10 @@ const smtpPass = process.env.SMTP_PASS || '';
 const smtpFrom =
   process.env.SMTP_FROM || '"Case Gateway" <no-reply@case-gateway.local>';
 
+/** Police OTP → X-Auth-Token TTL. Default 2h: integrations (e.g. forensics export) often exceed 10 min. */
 const otpTtlMsRaw = Number(process.env.OTP_TTL_MS);
 const otpTtlMs =
-  Number.isFinite(otpTtlMsRaw) && otpTtlMsRaw > 0 ? otpTtlMsRaw : 10 * 60 * 1000;
+  Number.isFinite(otpTtlMsRaw) && otpTtlMsRaw > 0 ? otpTtlMsRaw : 2 * 60 * 60 * 1000;
 
 function resolveRecordStorePath() {
   const raw = process.env.RECORD_STORE_PATH;
