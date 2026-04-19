@@ -129,4 +129,41 @@ router.post('/login', async (req, res, next) => {
   return res.status(403).json({ error: 'unsupported role' });
 });
 
+/**
+ * Exchange one-time OTP for a police browser session (§8 S7.1「警察会话」).
+ * Body: { username, otp } — OTP must match a token issued for that police userId.
+ */
+router.post('/api/auth/police-otp', async (req, res, next) => {
+  const username = req.body.username ?? req.body.user;
+  const otp = req.body.otp;
+  if (!username || !otp) {
+    return res.status(400).json({ error: 'username and otp are required' });
+  }
+
+  const user = userStore.findByUsername(String(username).trim());
+  if (!user || String(user.role || '').toLowerCase() !== 'police') {
+    return res.status(403).json({ error: 'police only' });
+  }
+
+  const out = tokenStore.consume(String(otp).trim());
+  if (!out || out.userId !== user.userId) {
+    return res.status(401).json({ error: 'invalid or expired otp' });
+  }
+
+  try {
+    await regenerateSession(req);
+    req.session.role = 'police';
+    req.session.userId = user.userId;
+    req.session.username = user.username;
+    return res.status(200).json({
+      status: 'session_ok',
+      userId: user.userId,
+      username: user.username,
+      role: 'police'
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

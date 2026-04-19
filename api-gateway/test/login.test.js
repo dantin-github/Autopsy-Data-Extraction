@@ -58,6 +58,25 @@ test('POST /login police returns 200 otp_sent', async () => {
   assert.strictEqual(tokenStore.size(), 1);
 });
 
+test('POST /api/auth/police-otp exchanges OTP for police session', async () => {
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+  tokenStore.issue('u-police-1', 'policeotppoliceotppoliceotpp', 60_000);
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const res = await request(app)
+    .post('/api/auth/police-otp')
+    .send({ username: 'officer1', otp: 'policeotppoliceotppoliceotpp' })
+    .expect(200)
+    .expect('Content-Type', /json/);
+
+  assert.strictEqual(res.body.status, 'session_ok');
+  assert.strictEqual(res.body.role, 'police');
+  assert.strictEqual(res.body.userId, 'u-police-1');
+  assert.ok(res.headers['set-cookie'], 'session cookie set');
+});
+
 test('POST /login judge returns 302 to dashboard with sid (no JSON Accept)', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();

@@ -27,7 +27,8 @@ Police / judge demo accounts are defined in **`data/users.example.json`** (passw
 | `RECORD_STORE_PATH` | Private JSON store (default: `%USERPROFILE%\.case_record_store.json`). |
 | Chain | `conf/fisco-config.json` + `conf/accounts/gateway.pem` — see `.env.example`. |
 | `CASE_REGISTRY_ADDR` | Set by **`npm run deploy-contract`** (S5.1) after compiling `CaseRegistry`. |
-| `UPLOAD_USE_CASE_REGISTRY` | **`1`** = S5.4 also runs **`createRecord`** on **`CaseRegistry`** (needs **`signingPassword`** on **`POST /api/upload`**). |
+| `CHAIN_MODE` | **`crud`** (default) or **`contract`**. **`contract`** + **`CASE_REGISTRY_ADDR`** = dual write CRUD + **`CaseRegistry.createRecord`** (needs **`signingPassword`** on upload). |
+| `UPLOAD_USE_CASE_REGISTRY` | Legacy **`1`** = same contract path as **`CHAIN_MODE=contract`** when address is set. |
 
 ## S3.7 smoke (6 checks, no separate server)
 
@@ -120,9 +121,15 @@ npm run seed-roles
 
 **`src/services/caseRegistryTx.js`** — after the usual **`t_case_hash`** CRUD insert succeeds, optionally calls **`CaseRegistry.createRecord`** using the police user’s **`data/keystore/<userId>.enc`** (decrypted with **`signingPassword`** in the JSON body) and a temporary FISCO **`ecrandom`** account (same pattern as contract integration tests).
 
-Enable with **`UPLOAD_USE_CASE_REGISTRY=1`** in **`.env`** and a valid **`CASE_REGISTRY_ADDR`**. **`POST /api/upload`** must then include **`signingPassword`** (login password used when **`npm run seed-roles`** encrypted the key). On success the JSON response adds **`caseRegistryTxHash`** and **`caseRegistryBlockNumber`**. Wrong password → **401**; duplicate **`indexHash`** on the contract → **409** (local store is rolled back; the CRUD row may still exist — see code comments).
+Enable with **`CHAIN_MODE=contract`** (or legacy **`UPLOAD_USE_CASE_REGISTRY=1`**) and a valid **`CASE_REGISTRY_ADDR`**. **`POST /api/upload`** must then include **`signingPassword`** (login password used when **`npm run seed-roles`** encrypted the key). On success the JSON response adds **`caseRegistryTxHash`** and **`caseRegistryBlockNumber`**. Wrong password → **401**; duplicate **`indexHash`** on the contract → **409** (local store is rolled back; the CRUD row may still exist — see code comments).
 
 **`npm test`** includes **`test/caseRegistryTx.test.js`** (bytes32 normalization).
+
+## Phase 6 · CHAIN_MODE + smoke regression (S6.1 / S6.2)
+
+**`CHAIN_MODE`** — **`crud`** (default): **`POST /api/upload`** only inserts into **`t_case_hash`**. **`contract`**: after CRUD, **`chain.createCaseRegistryRecordFromKeystore`** delegates to **`caseRegistryTx`** (same as S5.4). Configure **`CASE_REGISTRY_ADDR`** and **`signingPassword`** on upload.
+
+**`npm run smoke`** runs **twelve** checks: the original six (**`CHAIN_MODE=crud`**) plus the same six with **`CHAIN_MODE=contract`** and **`CaseRegistry`** calls **mocked** (no live signing).
 
 ## Run the server
 
@@ -148,6 +155,7 @@ Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from
 |--------|---------|
 | `npm run seed-users` | Build `data/users.json` from `users.example.json` |
 | `npm run seed-roles` | S5.3 keystore + `onchainAddress`; chain register police/judge on `CaseRegistry` |
+| `npm run verify-case-registry-roles` | S5.5 on-chain `police`/`judges` flags vs `users.json` (no Java Console) |
 | `npm run ping-chain` | Block height (needs chain config) |
 | `npm run smoke` | S3.7 acceptance smoke |
 | `npm run compile -- contracts/<Name>.sol` | S4.x Solidity → `build/<Name>.{abi,bin}` (HelloWorld / CaseRegistry) |

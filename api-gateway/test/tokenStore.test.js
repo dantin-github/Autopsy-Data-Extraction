@@ -30,6 +30,14 @@ test('second consume after successful consume is null (one-time)', () => {
   assert.strictEqual(tokenStore.consume('once'), null);
 });
 
+test('peek returns userId without consuming', () => {
+  tokenStore.issue('u-peek', 'tok-peek', 60_000);
+  assert.deepStrictEqual(tokenStore.peek('tok-peek'), { userId: 'u-peek' });
+  assert.deepStrictEqual(tokenStore.peek('tok-peek'), { userId: 'u-peek' });
+  assert.deepStrictEqual(tokenStore.consume('tok-peek'), { userId: 'u-peek' });
+  assert.strictEqual(tokenStore.peek('tok-peek'), null);
+});
+
 test('consume after TTL returns null', async () => {
   tokenStore.issue('u-3', 'expires', 100);
   await delay(220);

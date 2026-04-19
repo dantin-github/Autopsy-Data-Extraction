@@ -55,6 +55,8 @@ The security design of this research considers basic security requirements as th
 
 [x] [P4] 4.4 test/contract-negative.test.js（6 场景 revert + reason）。验收：非 police / 非 judge / 未批 execute / 重复 proposal / 自批 / 非 proposer；docs/evidence/negative-cases/s4.4-manifest.jsonl 存档 txHash
 
+阶段 5 — 链上身份与 CaseRegistry（计划与进度）
+
 [x] [P5] 5.1 scripts/deploy-contract.js + npm run deploy-contract。验收：链就绪后部署 CaseRegistry；.env 写入 CASE_REGISTRY_ADDR；WeBASE 可查部署交易 / 导入 ABI 后可见函数名
 
 [x] [P5] 5.2 src/services/keystore.js（scrypt + AES-GCM + generateKeypair）。验收：encrypt→decrypt 还原；错密码 BadPassword；同 key 两次密文不同；npm test 含 keystore.test.js
@@ -62,4 +64,14 @@ The security design of this research considers basic security requirements as th
 [x] [P5] 5.3 scripts/seed-roles.js + npm run seed-roles。验收：每用户 data/keystore/<userId>.enc；链上 addPolice/addJudge（gateway）；users.json 写入 onchainAddress；可选 --keystore-only；npm test 含 seed-roles.test.js
 
 [x] [P5] 5.4 src/services/caseRegistryTx.js + UPLOAD_USE_CASE_REGISTRY。验收：POST /api/upload 在 CRUD 成功后用用户 keystore 解密 + ecrandom 调 createRecord；请求体 signingPassword；响应 caseRegistryTxHash；npm test 含 caseRegistryTx.test.js
+
+[x] [P5] 5.5 scripts/verify-case-registry-roles.js + npm run verify-case-registry-roles。验收：链就绪时读 users.json 的 onchainAddress，调用 CaseRegistry.police(address)/judges(address)，与 role 一致则 ok；无需 Java Console
+
+[x] 第五阶段 P5 已全部完成（S5.1–S5.5）。
+
+阶段 6 — /api/upload 切合约与回归（计划与进度）
+
+[x] [P6] 6.1 chain.js + CHAIN_MODE（crud|contract）+ createCaseRegistryRecordFromKeystore。验收：contract 下 CRUD 后 createRecord；config.uploadContractEnabled
+
+[x] [P6] 6.2 npm run smoke 双模式（crud + contract 各 6 断言）。验收：12 checks total
 

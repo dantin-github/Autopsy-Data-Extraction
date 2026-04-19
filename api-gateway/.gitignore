@@ -14,5 +14,9 @@ query-e2e-body.json
 e2e-upload-body.json
 e2e-query-body.json
 
+# Local scratch from manual curl / PowerShell (S7.1 verify)
+_propose.json
+upload-verify.json
+
 # solc output (regenerate: npm run compile -- contracts/HelloWorld.sol)
 build/

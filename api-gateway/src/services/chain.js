@@ -191,6 +191,17 @@ async function selectRecordByIndexHash(indexHash) {
 }
 
 /**
+ * CaseRegistry.createRecord via police user keystore (S5.4 / S6.1). Lazy-loads `caseRegistryTx` to avoid circular require with that module.
+ *
+ * @param {{ userId: string, signingPassword: string, indexHashHex: string, recordHashHex: string }} opts
+ * @returns {Promise<{ txHash: string, blockNumber: number }>}
+ */
+async function createCaseRegistryRecordFromKeystore(opts) {
+  const caseRegistryTx = require('./caseRegistryTx');
+  return caseRegistryTx.createRecordFromUserKeystore(opts);
+}
+
+/**
  * Current block height (group). Requires conf/fisco-config.json + conf/accounts/gateway.pem.
  */
 async function getBlockNumber() {
@@ -210,6 +221,7 @@ module.exports = {
   getChainConfigGaps,
   getBlockNumber,
   insertRecord,
+  createCaseRegistryRecordFromKeystore,
   selectRecord,
   selectRecordByIndexHash
 };

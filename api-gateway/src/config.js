@@ -100,6 +100,20 @@ const uploadUseCaseRegistry = ['1', 'true', 'yes'].includes(
   String(process.env.UPLOAD_USE_CASE_REGISTRY || '').toLowerCase()
 );
 
+/** `crud` (default): only `t_case_hash` CRUD insert. `contract`: also `CaseRegistry.createRecord` after CRUD when `CASE_REGISTRY_ADDR` is set (S6.1). Legacy: `UPLOAD_USE_CASE_REGISTRY=1` still enables contract path when `CHAIN_MODE` is not `contract`. */
+const chainModeRaw = String(process.env.CHAIN_MODE || 'crud').trim().toLowerCase();
+const chainMode = chainModeRaw === 'contract' ? 'contract' : 'crud';
+
+function uploadContractEnabled() {
+  if (!caseRegistryAddr) {
+    return false;
+  }
+  if (chainMode === 'contract') {
+    return true;
+  }
+  return uploadUseCaseRegistry;
+}
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -119,5 +133,7 @@ module.exports = {
   fiscoConfigPath,
   caseHashTableName,
   caseRegistryAddr,
-  uploadUseCaseRegistry
+  uploadUseCaseRegistry,
+  chainMode,
+  uploadContractEnabled
 };

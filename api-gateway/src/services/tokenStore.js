@@ -40,6 +40,24 @@ function consume(token) {
   return { userId: entry.userId };
 }
 
+/**
+ * Validate token without consuming (e.g. GET with X-Auth-Token).
+ * @param {string} token
+ * @returns {{ userId: string } | null}
+ */
+function peek(token) {
+  const key = String(token);
+  const entry = store.get(key);
+  if (!entry) {
+    return null;
+  }
+  if (Date.now() > entry.expiresAt) {
+    store.delete(key);
+    return null;
+  }
+  return { userId: entry.userId };
+}
+
 /** Remove expired entries (optional housekeeping). */
 function sweep() {
   const now = Date.now();
@@ -63,6 +81,7 @@ function size() {
 module.exports = {
   issue,
   consume,
+  peek,
   sweep,
   clear,
   size

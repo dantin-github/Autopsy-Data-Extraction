@@ -6,7 +6,6 @@ const integrity = require('../services/integrity');
 const hashOnly = require('../services/hashOnly');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const chain = require('../services/chain');
-const caseRegistryTx = require('../services/caseRegistryTx');
 const requirePoliceToken = require('../middleware/requirePoliceToken');
 
 const router = express.Router();
@@ -54,13 +53,12 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     return next(err);
   }
 
-  const contractMode =
-    config.uploadUseCaseRegistry && String(config.caseRegistryAddr || '').trim() !== '';
+  const contractMode = config.uploadContractEnabled();
   if (contractMode) {
     const sp = body.signingPassword;
     if (sp == null || String(sp) === '') {
       const err = new Error(
-        'signingPassword is required when UPLOAD_USE_CASE_REGISTRY is enabled and CASE_REGISTRY_ADDR is set'
+        'signingPassword is required when CHAIN_MODE=contract (or UPLOAD_USE_CASE_REGISTRY=1) and CASE_REGISTRY_ADDR is set'
       );
       err.status = 400;
       return next(err);
@@ -99,7 +97,7 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     let caseRegistryBlockNumber;
     if (contractMode) {
       try {
-        const reg = await caseRegistryTx.createRecordFromUserKeystore({
+        const reg = await chain.createCaseRegistryRecordFromKeystore({
           userId: req.policeUserId,
           signingPassword: String(body.signingPassword || ''),
           indexHashHex: indexHashRaw,
