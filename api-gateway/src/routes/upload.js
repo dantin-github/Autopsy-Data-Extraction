@@ -1,10 +1,12 @@
 'use strict';
 
 const express = require('express');
+const config = require('../config');
 const integrity = require('../services/integrity');
 const hashOnly = require('../services/hashOnly');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const chain = require('../services/chain');
+const caseRegistryTx = require('../services/caseRegistryTx');
 const requirePoliceToken = require('../middleware/requirePoliceToken');
 
 const router = express.Router();
@@ -52,6 +54,19 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     return next(err);
   }
 
+  const contractMode =
+    config.uploadUseCaseRegistry && String(config.caseRegistryAddr || '').trim() !== '';
+  if (contractMode) {
+    const sp = body.signingPassword;
+    if (sp == null || String(sp) === '') {
+      const err = new Error(
+        'signingPassword is required when UPLOAD_USE_CASE_REGISTRY is enabled and CASE_REGISTRY_ADDR is set'
+      );
+      err.status = 400;
+      return next(err);
+    }
+  }
+
   if (!integrity.verify(caseJson)) {
     const err = new Error('aggregate hash verification failed');
     err.status = 400;
@@ -80,11 +95,51 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
       recordHash: recordHashRaw
     });
 
+    let caseRegistryTxHash;
+    let caseRegistryBlockNumber;
+    if (contractMode) {
+      try {
+        const reg = await caseRegistryTx.createRecordFromUserKeystore({
+          userId: req.policeUserId,
+          signingPassword: String(body.signingPassword || ''),
+          indexHashHex: indexHashRaw,
+          recordHashHex: recordHashRaw
+        });
+        caseRegistryTxHash = reg.txHash;
+        caseRegistryBlockNumber = reg.blockNumber;
+      } catch (e) {
+        try {
+          recordStore.remove(caseId);
+        } catch (_) {
+          /* best-effort rollback */
+        }
+        if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
+          e.status = 503;
+        } else if (e && e.code === 'CASE_REGISTRY_ABI_MISSING') {
+          e.status = 503;
+        } else if (e && e.code === 'CASE_REGISTRY_ADDR_MISSING') {
+          e.status = 503;
+        } else if (e && e.code === 'NOT_POLICE') {
+          e.status = 403;
+        } else if (e && e.status) {
+          /* keep */
+        } else if (e && e.code === 'DUPLICATE_CASE_REGISTRY') {
+          e.status = 409;
+        } else if (e && /duplicate|exist|already|Duplicate/i.test(String(e.message))) {
+          e.status = 409;
+        }
+        return next(e);
+      }
+    }
+
     return res.status(200).json({
       indexHash: toHex0x(indexHashRaw),
       recordHash: toHex0x(recordHashRaw),
       txHash,
-      blockNumber
+      blockNumber,
+      ...(caseRegistryTxHash != null
+        ? { caseRegistryTxHash, caseRegistryBlockNumber }
+        : {})
     });
   } catch (e) {
     try {

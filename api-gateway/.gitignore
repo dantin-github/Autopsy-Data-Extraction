@@ -2,6 +2,7 @@ node_modules/
 .env
 *.log
 data/users.json
+data/keystore/*.enc
 
 # Local curl / e2e scratch (do not commit)
 judge-cookies.txt
@@ -12,3 +13,6 @@ query-demo1-body.json
 query-e2e-body.json
 e2e-upload-body.json
 e2e-query-body.json
+
+# solc output (regenerate: npm run compile -- contracts/HelloWorld.sol)
+build/

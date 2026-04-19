@@ -39,6 +39,14 @@ function findByUsername(username) {
   return getUsers().find((row) => row.username === u) || null;
 }
 
+function findByUserId(userId) {
+  const id = String(userId || '').trim();
+  if (!id) {
+    return null;
+  }
+  return getUsers().find((row) => row.userId === id) || null;
+}
+
 async function verifyPassword(user, password) {
   if (!user || !user.passwordHash) {
     return false;
@@ -63,6 +71,7 @@ async function verifyCredentials(username, password) {
 module.exports = {
   clearCache,
   findByUsername,
+  findByUserId,
   verifyPassword,
   verifyCredentials
 };

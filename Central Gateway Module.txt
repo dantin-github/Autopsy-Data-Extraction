@@ -47,3 +47,19 @@ The security design of this research considers basic security requirements as th
 
 [x] [P3] 3.7 npm run smoke（scripts/smoke.js）+ README.md。验收：6 步断言一遍过
 
+[x] [P4] 4.1 solc@0.5.10 + contracts/HelloWorld.sol + scripts/compile.js。验收：npm run compile -- contracts/HelloWorld.sol → build/*.abi + *.bin；npm test 含 compile-hello
+
+[x] [P4] 4.2 contracts/CaseRegistry.sol（§11.2 状态机 + 事件 + getProposal）。验收：npm run compile -- contracts/CaseRegistry.sol；ABI 11 函数 5 事件；npm test 含 compile-case-registry
+
+[x] [P4] 4.3 test/contract-positive.test.js（链上部署 + create→propose→approve→execute）。验收：receipt status 成功、事件名命中、getProposal/getRecordHash 字段；无链则 skip
+
+[x] [P4] 4.4 test/contract-negative.test.js（6 场景 revert + reason）。验收：非 police / 非 judge / 未批 execute / 重复 proposal / 自批 / 非 proposer；docs/evidence/negative-cases/s4.4-manifest.jsonl 存档 txHash
+
+[x] [P5] 5.1 scripts/deploy-contract.js + npm run deploy-contract。验收：链就绪后部署 CaseRegistry；.env 写入 CASE_REGISTRY_ADDR；WeBASE 可查部署交易 / 导入 ABI 后可见函数名
+
+[x] [P5] 5.2 src/services/keystore.js（scrypt + AES-GCM + generateKeypair）。验收：encrypt→decrypt 还原；错密码 BadPassword；同 key 两次密文不同；npm test 含 keystore.test.js
+
+[x] [P5] 5.3 scripts/seed-roles.js + npm run seed-roles。验收：每用户 data/keystore/<userId>.enc；链上 addPolice/addJudge（gateway）；users.json 写入 onchainAddress；可选 --keystore-only；npm test 含 seed-roles.test.js
+
+[x] [P5] 5.4 src/services/caseRegistryTx.js + UPLOAD_USE_CASE_REGISTRY。验收：POST /api/upload 在 CRUD 成功后用用户 keystore 解密 + ecrandom 调 createRecord；请求体 signingPassword；响应 caseRegistryTxHash；npm test 含 caseRegistryTx.test.js
+

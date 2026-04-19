@@ -8,6 +8,8 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed-users": "node scripts/seed-users.js",
+    "seed-roles": "node scripts/seed-roles.js",
+    "verify-case-registry-roles": "node scripts/verify-case-registry-roles.js",
     "hash-compare": "node scripts/hash-compare-demo.js",
     "generate-hash-samples": "node scripts/generate-hash-samples.js",
     "generate-record-store-fixture": "node scripts/generate-record-store-fixture.js",
@@ -19,7 +21,9 @@
     "verify-record-hash": "node scripts/verify-record-hash.js",
     "postinstall": "patch-package",
     "test": "node --test --test-concurrency=1 ./test/**/*.test.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "compile": "node scripts/compile.js",
+    "deploy-contract": "node scripts/deploy-contract.js"
   },
   "engines": {
     "node": ">=18"
@@ -36,6 +40,7 @@
   },
   "devDependencies": {
     "patch-package": "^8.0.1",
+    "solc": "^0.5.10",
     "supertest": "^7.0.0"
   }
 }

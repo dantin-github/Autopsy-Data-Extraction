@@ -89,6 +89,17 @@ const caseHashTableName =
     ? String(process.env.CASE_HASH_TABLE).trim()
     : 't_case_hash';
 
+const caseRegistryAddrRaw = process.env.CASE_REGISTRY_ADDR;
+const caseRegistryAddr =
+  caseRegistryAddrRaw != null && String(caseRegistryAddrRaw).trim() !== ''
+    ? String(caseRegistryAddrRaw).trim()
+    : '';
+
+/** When true and CASE_REGISTRY_ADDR is set, POST /api/upload also calls CaseRegistry.createRecord signed with the police user keystore (requires signingPassword). */
+const uploadUseCaseRegistry = ['1', 'true', 'yes'].includes(
+  String(process.env.UPLOAD_USE_CASE_REGISTRY || '').toLowerCase()
+);
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -106,5 +117,7 @@ module.exports = {
   otpTtlMs,
   recordStorePath,
   fiscoConfigPath,
-  caseHashTableName
+  caseHashTableName,
+  caseRegistryAddr,
+  uploadUseCaseRegistry
 };
