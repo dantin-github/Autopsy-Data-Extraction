@@ -37,7 +37,13 @@ The security design of this research considers basic security requirements as th
 
 [x] [P3] 3.2 ping-chain.js。验收：链与控制台就绪后，npm run ping-chain 输出的块高与 FISCO console 的 getBlockNumber 一致
 
-[ ] [P3] 3.3 chain.js CRUD 封装 insert/select。验收：node -e 调用拿 txHash
+[x] [P3] 3.3 chain.js CRUD 封装 insert/select。验收：npm test / chain.crud.test.js；链就绪时 insert 拿 txHash
 
-[ ] [P3] 3.4 POST /api/upload。验收：WeBASE 见交易、t_case_hash 命中（当前未实现，按 plan 在 S3.3 之后做）
+[x] [P3] 3.4 POST /api/upload（警察 X-Auth-Token）。验收：WeBASE 见交易、recordStore 有档
+
+[x] [P3] 3.5 POST /api/query（法官会话 Cookie）。验收：本地记录读出 indexHash/recordHash，链上 select record_hash 是否命中 → onChain
+
+[x] [P3] 3.6 篡改负向：改 ~/.case_record_store.json 某字段 → integrity.recordHashMatch=false；响应含 recordHashLocal vs recordHashOnChain
+
+[x] [P3] 3.7 npm run smoke（scripts/smoke.js）+ README.md。验收：6 步断言一遍过
 

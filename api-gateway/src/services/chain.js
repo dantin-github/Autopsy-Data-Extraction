@@ -159,6 +159,38 @@ async function selectRecord(recordHash) {
 }
 
 /**
+ * Select the row for `index_hash` (primary key). Used by /api/query to read the canonical
+ * on-chain `record_hash` for a case, including when the local private store was tampered
+ * (local record_hash no longer matches) — S3.6.
+ *
+ * @param {string} indexHash hex (with or without 0x)
+ * @returns {{ indexHash: string | null, recordHash: string | null, rows: object[] }}
+ */
+async function selectRecordByIndexHash(indexHash) {
+  if (!isChainConfigured()) {
+    const detail = getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+  const ihKey = normalizeChainHashHex('indexHash', indexHash);
+
+  const table = new Table(config.caseHashTableName, 'index_hash', 'record_hash');
+  const condition = new Condition();
+  condition.eq('index_hash', ihKey);
+
+  const rows = await getCrudService().select(table, condition);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { indexHash: null, recordHash: null, rows: [] };
+  }
+  const idx =
+    rows[0] && rows[0].index_hash != null ? String(rows[0].index_hash) : null;
+  const rh =
+    rows[0] && rows[0].record_hash != null ? String(rows[0].record_hash) : null;
+  return { indexHash: idx, recordHash: rh, rows };
+}
+
+/**
  * Current block height (group). Requires conf/fisco-config.json + conf/accounts/gateway.pem.
  */
 async function getBlockNumber() {
@@ -178,5 +210,6 @@ module.exports = {
   getChainConfigGaps,
   getBlockNumber,
   insertRecord,
-  selectRecord
+  selectRecord,
+  selectRecordByIndexHash
 };

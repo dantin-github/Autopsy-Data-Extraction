@@ -64,6 +64,9 @@ api-gateway/package/
 # -------------------------------------------------------
 .cursor/
 
+# Local HTTP session / cookies (never commit)
+judge-cookies.txt
+
 # -------------------------------------------------------
 # IDE / OS artefacts
 # -------------------------------------------------------

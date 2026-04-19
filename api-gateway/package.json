@@ -18,7 +18,8 @@
     "decode-crud-tx": "node scripts/decode-crud-insert-tx.js",
     "verify-record-hash": "node scripts/verify-record-hash.js",
     "postinstall": "patch-package",
-    "test": "node --test --test-concurrency=1 ./test/**/*.test.js"
+    "test": "node --test --test-concurrency=1 ./test/**/*.test.js",
+    "smoke": "node scripts/smoke.js"
   },
   "engines": {
     "node": ">=18"
