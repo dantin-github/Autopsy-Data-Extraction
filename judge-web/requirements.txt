@@ -1,0 +1,5 @@
+# Data Presentation Dashboard (Judge Web) — Phase 1+ deps
+streamlit>=1.35.0,<2
+requests>=2.31.0,<3
+python-dotenv>=1.0.0,<2
+reportlab>=4.0.0,<5

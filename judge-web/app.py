@@ -1,0 +1,100 @@
+"""
+Data Presentation Dashboard — Streamlit entry.
+"""
+
+from __future__ import annotations
+
+import time
+from datetime import datetime, timezone
+
+import streamlit as st
+
+import config
+from services.gateway_client import GatewayError, GatewayTransportError, get_client
+
+try:
+    _settings = {
+        "api_gateway_url": config.get_api_gateway_url(),
+        "log_level": config.get_log_level(),
+    }
+except ValueError as e:
+    st.set_page_config(page_title="Judge Dashboard", page_icon="⚖️", layout="centered")
+    st.error("Configuration error")
+    st.code(str(e))
+    st.stop()
+
+st.set_page_config(
+    page_title="Judge Dashboard",
+    page_icon="⚖️",
+    layout="centered",
+)
+
+if "gateway_ping" not in st.session_state:
+    st.session_state.gateway_ping = None
+
+with st.sidebar:
+    st.header("Configuration")
+    st.markdown("**API Gateway (base URL)**")
+    st.code(_settings["api_gateway_url"], language="text")
+    st.markdown("**Log level**")
+    st.code(_settings["log_level"], language="text")
+    st.caption(
+        "Values load from `judge-web/.env` first (create by copying `.env.example`). "
+        "Restart the app after edits. `.env.example` is only a template and is not read."
+    )
+
+    st.divider()
+    st.subheader("Connectivity")
+    if st.button("Ping Gateway", key="ping_gateway_btn", use_container_width=True):
+        t0 = time.perf_counter()
+        checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        try:
+            body = get_client().get_health()
+            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+            status = str(body.get("status", "ok"))
+            st.session_state.gateway_ping = {
+                "ok": True,
+                "status": status,
+                "latency_ms": latency_ms,
+                "checked_at": checked_at,
+                "uptime": body.get("uptime"),
+            }
+        except GatewayTransportError as e:
+            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+            st.session_state.gateway_ping = {
+                "ok": False,
+                "status": "unreachable",
+                "latency_ms": latency_ms,
+                "checked_at": checked_at,
+                "error": str(e),
+            }
+        except GatewayError as e:
+            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+            st.session_state.gateway_ping = {
+                "ok": False,
+                "status": "error",
+                "latency_ms": latency_ms,
+                "checked_at": checked_at,
+                "error": e.message,
+                "http_status": e.status,
+            }
+
+    ping = st.session_state.gateway_ping
+    if ping is None:
+        st.caption("Click **Ping Gateway** to test connectivity to `/health`.")
+    elif ping["ok"]:
+        st.success(f"**{ping['status']}** — {ping['latency_ms']} ms")
+        st.caption(f"Last check: {ping['checked_at']}")
+        if ping.get("uptime") is not None:
+            st.caption(f"Gateway uptime (s): {ping['uptime']}")
+    else:
+        st.error(f"**{ping['status']}** — {ping['latency_ms']} ms")
+        st.caption(f"Last check: {ping['checked_at']}")
+        err = ping.get("error") or "Unknown error"
+        st.caption(err[:500] + ("…" if len(err) > 500 else ""))
+
+st.title("Data Presentation Dashboard")
+st.caption("Judge / Auditor — Phase 1 (S1.4: Ping Gateway)")
+st.info(
+    "Placeholder page. Phase 1 complete. Next: Phase 2 — login (S2.1 onward)."
+)
