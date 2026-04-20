@@ -47,6 +47,10 @@ before(() => {
     'case_record_store.json'
   );
   process.env.RECORD_STORE_PATH = tmpRecordStorePath;
+  /* Isolate from developer .env (e.g. CHAIN_MODE=contract + CASE_REGISTRY_ADDR). */
+  process.env.CHAIN_MODE = 'crud';
+  process.env.CASE_REGISTRY_ADDR = '';
+  process.env.UPLOAD_USE_CASE_REGISTRY = '0';
   delete require.cache[require.resolve('../src/config')];
   delete require.cache[require.resolve('../src/services/recordStore')];
 

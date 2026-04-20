@@ -56,6 +56,11 @@ function createRecordStore(options = {}) {
       return this.get(caseId) != null;
     },
 
+    /** @returns {string[]} All keys in the store (for pending-key lookup). */
+    keys() {
+      return Object.keys(loadStore());
+    },
+
     remove(caseId) {
       const id = nz(caseId);
       const store = loadStore();

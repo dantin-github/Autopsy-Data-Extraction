@@ -35,7 +35,11 @@ function buildVerifiedCaseJson(caseId, note) {
 let tmpRecordStorePath;
 let origGetRecordHash;
 let origPropose;
+let origApprove;
+let origReject;
+let origExecute;
 let origGetProposal;
+let origChainUpdateRecord;
 
 before(() => {
   const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'seed-users.js')], {
@@ -53,9 +57,20 @@ before(() => {
   delete require.cache[require.resolve('../src/config')];
   delete require.cache[require.resolve('../src/services/recordStore')];
 
+  const chain = require('../src/services/chain');
+  origChainUpdateRecord = chain.updateRecord;
+  chain.updateRecord = async () => ({
+    txHash: `0x${'22'.repeat(32)}`,
+    affected: 1,
+    blockNumber: 100
+  });
+
   const caseRegistryTx = require('../src/services/caseRegistryTx');
   origGetRecordHash = caseRegistryTx.getRecordHashOnRegistry;
   origPropose = caseRegistryTx.proposeFromUserKeystore;
+  origApprove = caseRegistryTx.approveFromUserKeystore;
+  origReject = caseRegistryTx.rejectFromUserKeystore;
+  origExecute = caseRegistryTx.executeFromUserKeystore;
   origGetProposal = caseRegistryTx.getProposalFromRegistry;
 
   caseRegistryTx.getRecordHashOnRegistry = async (indexHashHex) => {
@@ -100,6 +115,41 @@ before(() => {
     }
   });
 
+  caseRegistryTx.approveFromUserKeystore = async (opts) => ({
+    txHash: `0x${'dd'.repeat(32)}`,
+    blockNumber: 9,
+    proposalApproved: {
+      proposalId: String(opts.proposalIdHex).toLowerCase().startsWith('0x')
+        ? String(opts.proposalIdHex).toLowerCase()
+        : `0x${String(opts.proposalIdHex).toLowerCase()}`,
+      approver: `0x${'33'.repeat(20)}`
+    }
+  });
+
+  caseRegistryTx.rejectFromUserKeystore = async (opts) => ({
+    txHash: `0x${'ee'.repeat(32)}`,
+    blockNumber: 11,
+    proposalRejected: {
+      proposalId: String(opts.proposalIdHex).toLowerCase().startsWith('0x')
+        ? String(opts.proposalIdHex).toLowerCase()
+        : `0x${String(opts.proposalIdHex).toLowerCase()}`,
+      approver: `0x${'33'.repeat(20)}`,
+      reason: String(opts.rejectReason || '')
+    }
+  });
+
+  caseRegistryTx.executeFromUserKeystore = async (opts) => ({
+    txHash: `0x${'11'.repeat(32)}`,
+    blockNumber: 99,
+    proposalExecuted: {
+      proposalId: String(opts.proposalIdHex).toLowerCase().startsWith('0x')
+        ? String(opts.proposalIdHex).toLowerCase()
+        : `0x${String(opts.proposalIdHex).toLowerCase()}`,
+      oldHash: `0x${'aa'.repeat(32)}`,
+      newHash: `0x${'bb'.repeat(32)}`
+    }
+  });
+
   caseRegistryTx.getProposalFromRegistry = async (proposalIdHex) => ({
     indexHash: `0x${'dd'.repeat(32)}`,
     oldRecordHash: `0x${'ee'.repeat(32)}`,
@@ -117,9 +167,14 @@ before(() => {
 });
 
 after(() => {
+  const chain = require('../src/services/chain');
+  chain.updateRecord = origChainUpdateRecord;
   const caseRegistryTx = require('../src/services/caseRegistryTx');
   caseRegistryTx.getRecordHashOnRegistry = origGetRecordHash;
   caseRegistryTx.proposeFromUserKeystore = origPropose;
+  caseRegistryTx.approveFromUserKeystore = origApprove;
+  caseRegistryTx.rejectFromUserKeystore = origReject;
+  caseRegistryTx.executeFromUserKeystore = origExecute;
   caseRegistryTx.getProposalFromRegistry = origGetProposal;
   delete process.env.RECORD_STORE_PATH;
   try {
@@ -212,21 +267,139 @@ test('S7.1: propose + proposalCreated + judge GET returns Pending', async () => 
 
   assert.strictEqual(g.body.status, 'Pending');
   assert.strictEqual(g.body.proposalId, fixedProposalId);
+  assert.strictEqual(g.body.proposer, `0x${'22'.repeat(20)}`);
+  assert.strictEqual(g.body.approver, null);
+  assert.strictEqual(g.body.oldHash, `0x${'ee'.repeat(32)}`);
+  assert.strictEqual(g.body.newHash, `0x${'ff'.repeat(32)}`);
+  assert.strictEqual(g.body.reason, 'unit test');
+  assert.strictEqual(g.body.proposedAt, '1');
+  assert.strictEqual(g.body.decidedAt, '0');
 });
 
-test('GET /api/modify/:id without judge session → 401', async () => {
+test('GET /api/modify/:id without session → 401', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();
   const pid = `${'ab'.repeat(32)}`;
   await request(app).get(`/api/modify/${pid}`).expect(401);
 });
 
-test('GET /api/modify/:id police session cannot read (S7.5 前仅法官)', async () => {
+test('POST /api/modify/approve without judge session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app)
+    .post('/api/modify/approve')
+    .send({ proposalId: `0x${'01'.repeat(32)}`, signingPassword: '1' })
+    .expect(401);
+});
+
+test('POST /api/modify/execute without police session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app)
+    .post('/api/modify/execute')
+    .send({ proposalId: `0x${'01'.repeat(32)}`, signingPassword: '1' })
+    .expect(401);
+});
+
+test('S7.4: police POST execute applies pending snapshot', async () => {
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+
+  const caseId = `MODIFY-EXEC-${Date.now()}`;
+  const pid = `0x${'ef'.repeat(32)}`;
+  const caseJsonInitial = buildVerifiedCaseJson(caseId, 'v0');
+  const agg0 = JSON.parse(caseJsonInitial).aggregateHash;
+
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJsonInitial, agg0, 'police', '2026-01-15T12:00:00.000Z');
+
+  const caseJsonNew = buildVerifiedCaseJson(caseId, 'v1');
+  const agg1 = JSON.parse(caseJsonNew).aggregateHash;
+  const pendingFull = JSON.stringify({
+    case_id: caseId,
+    case_json: String(caseJsonNew),
+    aggregate_hash: String(agg1),
+    examiner: 'police',
+    created_at: '2026-02-01T12:00:00.000Z'
+  });
+  const pkey = `${caseId}::pending-${pid}`;
+  rs.save(pkey, pendingFull);
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const policeAgent = await withPoliceSession(app);
+
+  const res = await policeAgent
+    .post('/api/modify/execute')
+    .send({ proposalId: pid, signingPassword: 'irrelevant-mocked' })
+    .expect(200)
+    .expect('Content-Type', /json/);
+
+  assert.strictEqual(res.body.proposalId, pid);
+  assert.strictEqual(res.body.caseId, caseId);
+  assert.strictEqual(res.body.txHash, `0x${'11'.repeat(32)}`);
+  assert.strictEqual(res.body.crudTxHash, `0x${'22'.repeat(32)}`);
+  assert.strictEqual(rs.get(pkey), null);
+  assert.strictEqual(rs.get(caseId), pendingFull);
+});
+
+test('POST /api/modify/reject without judge session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app)
+    .post('/api/modify/reject')
+    .send({ proposalId: `0x${'01'.repeat(32)}`, signingPassword: '1', reason: 'x' })
+    .expect(401);
+});
+
+test('S7.3: judge POST reject returns txHash + proposalRejected', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const judgeAgent = await withJudgeSession(app);
+  const pid = `0x${'ab'.repeat(32)}`;
+  const res = await judgeAgent
+    .post('/api/modify/reject')
+    .send({ proposalId: pid, signingPassword: '1', reason: 'data mismatch' })
+    .expect(200)
+    .expect('Content-Type', /json/);
+  assert.strictEqual(res.body.proposalId, pid);
+  assert.strictEqual(res.body.reason, 'data mismatch');
+  assert.strictEqual(res.body.txHash, `0x${'ee'.repeat(32)}`);
+  assert.strictEqual(res.body.blockNumber, 11);
+  assert.ok(res.body.proposalRejected);
+  assert.strictEqual(res.body.proposalRejected.reason, 'data mismatch');
+});
+
+test('S7.2: judge POST approve returns txHash + proposalApproved', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const judgeAgent = await withJudgeSession(app);
+  const pid = `0x${'ab'.repeat(32)}`;
+  const res = await judgeAgent
+    .post('/api/modify/approve')
+    .send({ proposalId: pid, signingPassword: '1' })
+    .expect(200)
+    .expect('Content-Type', /json/);
+  assert.strictEqual(res.body.proposalId, pid);
+  assert.strictEqual(res.body.txHash, `0x${'dd'.repeat(32)}`);
+  assert.strictEqual(res.body.blockNumber, 9);
+  assert.ok(res.body.proposalApproved);
+  assert.strictEqual(res.body.proposalApproved.approver, `0x${'33'.repeat(20)}`);
+});
+
+test('S7.5: GET /api/modify/:id police session returns full proposal fields', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();
   const agent = await withPoliceSession(app);
   const pid = `${'ab'.repeat(32)}`;
-  await agent.get(`/api/modify/${pid}`).expect(401);
+  const g = await agent.get(`/api/modify/${pid}`).expect(200);
+  assert.strictEqual(g.body.status, 'Pending');
+  assert.strictEqual(g.body.proposer, `0x${'22'.repeat(20)}`);
+  assert.strictEqual(g.body.oldHash, `0x${'ee'.repeat(32)}`);
+  assert.strictEqual(g.body.newHash, `0x${'ff'.repeat(32)}`);
+  assert.strictEqual(g.body.reason, 'unit test');
+  assert.strictEqual(g.body.proposedAt, '1');
+  assert.strictEqual(g.body.decidedAt, '0');
 });
 
 test('GET /api/modify/:id 404 when proposal empty on chain', async () => {

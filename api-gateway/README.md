@@ -149,6 +149,62 @@ npm test
 
 Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from mail or dry-run log → `/api/upload` → judge login → `/api/query`. Real uploads need chain certs and a running FISCO peer group.
 
+## Phase 7 · 链上修改提议 / 审批（S7.1–S7.6）手动验证
+
+前提与 S7.1 相同：**`CHAIN_MODE=contract`**、**`CASE_REGISTRY_ADDR`** 已配置，**`conf/fisco-config.json`** + 证书可用，已 **`npm run compile -- contracts/CaseRegistry.sol`**、**`npm run deploy-contract`**、**`npm run seed-roles`**（警察 / 法官 **`onchainAddress`** 与 **`data/keystore/<userId>.enc`** 就绪）。网关 **`npm run dev`**。
+
+下面用 **curl** 思路说明；你也可以用 Postman / 浏览器插件，只要带上 **Cookie**（警察或法官会话）或 **X-Auth-Token**（警察上传等）即可。
+
+### S7.1（复习）：警察提议 → 法官读到 Pending
+
+1. **`GET /health`** — 确认服务正常。
+2. 警察：**`POST /login`**（`username` / `password`，警察账号）拿到 OTP 提示；若 **`MAIL_DRY_RUN=1`**，在终端日志里抄 OTP。
+3. **`POST /api/auth/police-otp`** — body：`username`、`otp`。成功后会 Set-Cookie（警察会话），后续请求带该 Cookie。
+4. 若链上还没有该案：**`POST /api/upload`**（需 **`X-Auth-Token`** + 与 **`CHAIN_MODE=contract`** 配套的 **`signingPassword`**），使 **`CaseRegistry`** 上存在该案记录。
+5. **`POST /api/modify/propose`** — Cookie（警察）+ JSON：`caseId`、`caseJson`、`aggregateHash`、`examiner`、`generatedAt`、**`signingPassword`**、可选 **`proposalId`**（不传则网关随机）、**`reason`** 等。成功返回 **`proposalId`**、**`txHash`**、**`blockNumber`**。
+6. 法官：**`POST /login`**，`Accept: application/json`，`username` / `password`（法官账号，如 **`judge1`** / **`1`**），拿到会话 Cookie。
+7. **`GET /api/modify/<proposalId>`**（S7.5）— **任一已登录角色**（警察或法官 Cookie）。路径里 **`proposalId`** 为 64 位十六进制（可带或不带 **`0x`**）。成功时返回链上提案全貌：**`proposalId`**、**`status`**、**`proposer`**、**`approver`**、**`oldHash`** / **`newHash`**、**`reason`**、**`proposedAt`**、**`decidedAt`**（均为合约 **`getProposal`** 解码结果；Pending 时 **`approver`** 一般为 **`null`**，**`reason`** 为警察在 **`propose`** 时填写的说明）。
+
+### S7.2：法官审批 → 链上 Approved
+
+在 **S7.1 已完成且提案仍为 Pending** 的前提下：
+
+1. 保持法官会话（同上 **`POST /login`** 拿到的 Cookie；或用同一浏览器会话）。
+2. **`POST /api/modify/approve`** — Cookie（法官）+ JSON  body：
+   - **`proposalId`**：上一步 **`propose`** 返回的 32 字节 hex（与 **`GET /api/modify/...`** 用的是同一个 ID）。
+   - **`signingPassword`**：与 **`npm run seed-roles`** 加密法官 keystore 时使用的密码一致（通常与 `data/users.example.json` 里该用户的登录密码相同，如 **`1`**）。
+3. 成功时响应含 **`txHash`**、**`blockNumber`**，以及可选的 **`proposalApproved`**（从收据事件解析的 **`proposalId`** / **`approver`** 地址）。
+4. 再次 **`GET /api/modify/<proposalId>`**：**`status`** 应为 **`Approved`**，**`approver`** 为法官链上地址（与 **`users.json`** 里该法官的 **`onchainAddress`** 一致）。可在 **WeBASE** 里用 **`txHash`** 查看交易与事件 **`ProposalApproved`**。
+
+说明：合约禁止 **提案人自己审批**（**`self approve`**）且仅 **Pending** 可批；重复审批或状态不对会返回 **4xx**（如 **`not pending`** → **409**）。法官 **`signingPassword`** 错误 → **401**。
+
+### S7.3：法官驳回 → 链上 Rejected
+
+在 **提案仍为 Pending** 的前提下（尚未 **approve**）：
+
+1. **`POST /api/modify/reject`** — Cookie（法官）+ JSON body：**`proposalId`**、**`signingPassword`**、**`reason`**（驳回理由，**必填**；会写入合约 **`Proposal.reason`**，并发出 **`ProposalRejected`** 事件）。
+2. 成功时响应含 **`txHash`**、**`blockNumber`**、**`reason`**（与请求一致），以及可选的 **`proposalRejected`**（事件解析）。
+3. **`GET /api/modify/<proposalId>`**：**`status`** 应为 **`Rejected`**，**`approver`** 为法官地址，**`reason`** 为**驳回理由**（不再是提议阶段的说明）。
+
+说明：与 **`approve`** 相同，禁止 **自批/自驳**（**`self reject`**）；非 **Pending** → **409**。
+
+### S7.4：原提议警察执行 → 链上 Executed + 本地正式记录更新
+
+在 **法官已 `approve`**、提案为 **Approved**，且网关 **`recordStore`** 里仍存在 **`{caseId}::pending-{proposalId}`** 待定稿的前提下：
+
+1. **警察会话**（与 **`propose`** 同一账号：`POST /login` → `POST /api/auth/police-otp`）。
+2. **`POST /api/modify/execute`** — JSON：**`proposalId`**、**`signingPassword`**（`seed-roles` 对应警察 keystore）。
+3. 成功：响应 **`txHash`**、**`blockNumber`**、**`caseId`**、**`pendingKey`**；可选 **`proposalExecuted`**（事件 **`ProposalExecuted`**）；以及 **`crudTxHash` / `crudBlockNumber`**（表 **`t_case_hash`** 与本地新记录对齐）。链上 **`CaseRegistry`** 的 **`record_hash`** 已更新；本地 **`caseId`** 主键由待定稿覆盖，**`pending`** 键删除。若 CRUD 更新失败，响应含 **`crudUpdateWarning`**（合约与本地已提交）。
+4. **`POST /api/query`**（法官）：在 CRUD 更新成功时，应对 **`recordHashMatch: true`**。
+
+若本地无待定条目 → **400** `PENDING_SNAPSHOT_NOT_FOUND`。合约侧：**非 Approved**、**非原 proposer**、或链上 **`record_hash` 已变** → **4xx**（见 `EXECUTE_FAILED`）。
+
+### S7.6：负向 HTTP + `chainError`
+
+合约 **`propose` / `approve` / `reject` / `execute`** 若交易回滚（receipt 失败），网关返回 **4xx**（常见 **409** 冲突、**403** 禁止），JSON body 含 **`error`**（人类可读）以及 **`chainError.revertReason`**（与合约 **`require`** 字符串一致，若能从 receipt 解码）和 **`chainError.txHash`**（失败交易的哈希）。
+
+**`npm test`** 中的 **`test/e2e-modify-negative.test.js`** 用 HTTP 覆盖四条负向路径并每次重写证据清单 **`docs/evidence/e2e-negative/s7.6-manifest.jsonl`**（含场景名、HTTP 状态、`revertReason`、`txHash`；测试中使用模拟失败时的占位 txHash，真链联调时由实际回滚交易替换）。
+
 ## Scripts (see `package.json`)
 
 | Script | Purpose |

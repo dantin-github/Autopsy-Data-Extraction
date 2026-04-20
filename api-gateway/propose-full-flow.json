@@ -1,0 +1,9 @@
+{
+  "caseId": "full-flow-1776661142107",
+  "caseJson": "{\"caseId\":\"full-flow-1776661142107\",\"examiner\":\"officer1\",\"aggregateHash\":\"cb7e6a5e8c68229d59267f5f6a567aa657f149ea32588bc21a67d668d21367c9\",\"aggregateHashNote\":\"proposed-update\"}",
+  "aggregateHash": "cb7e6a5e8c68229d59267f5f6a567aa657f149ea32588bc21a67d668d21367c9",
+  "examiner": "officer1",
+  "generatedAt": "2026-04-20T05:05:56.742Z",
+  "signingPassword": "1",
+  "reason": "policy update"
+}

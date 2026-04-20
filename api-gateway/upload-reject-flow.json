@@ -1,0 +1,8 @@
+{
+  "caseId": "reject-flow-1776659373025",
+  "examiner": "officer1",
+  "aggregateHash": "3620bc07563cae75b4872997198bd6add6fcfe303d474caa947694be56263bec",
+  "generatedAt": "2026-04-20T04:32:56.241Z",
+  "caseJson": "{\"caseId\":\"reject-flow-1776659373025\",\"examiner\":\"officer1\",\"aggregateHash\":\"3620bc07563cae75b4872997198bd6add6fcfe303d474caa947694be56263bec\",\"aggregateHashNote\":\"original-onchain\"}",
+  "signingPassword": "1"
+}

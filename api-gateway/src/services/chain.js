@@ -127,6 +127,54 @@ async function insertRecord(row) {
 }
 
 /**
+ * Update `record_hash` for an existing `index_hash` row in `t_case_hash` (CRUD precompile).
+ *
+ * @param {{ indexHash: string, recordHash: string }} row
+ * @returns {{ txHash: string, affected: number, blockNumber: number }}
+ */
+async function updateRecord(row) {
+  if (!isChainConfigured()) {
+    const detail = getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+  const indexHash = normalizeChainHashHex('indexHash', row && row.indexHash);
+  const recordHash = normalizeChainHashHex('recordHash', row && row.recordHash);
+
+  const table = new Table(config.caseHashTableName, 'index_hash', 'record_hash');
+  const entry = new Entry();
+  entry.put('record_hash', recordHash);
+  const condition = new Condition();
+  condition.eq('index_hash', indexHash);
+
+  const parameters = [
+    table.tableName,
+    table.key,
+    JSON.stringify(entry.fields),
+    JSON.stringify(condition.conditions),
+    table.optional
+  ];
+
+  const receipt = await getWeb3jService().sendRawTransaction(
+    crudConstant.CRUD_PRECOMPILE_ADDRESS,
+    crudConstant.CRUD_PRECOMPILE_ABI.update,
+    parameters
+  );
+
+  const txHash = receipt.transactionHash;
+  if (!txHash || typeof txHash !== 'string') {
+    throw new Error('sendRawTransaction receipt missing transactionHash');
+  }
+
+  const decoded = handleReceipt(receipt, crudConstant.CRUD_PRECOMPILE_ABI.update);
+  const affected = parseInt(String(decoded[0]), 10);
+  const blockNumber = parseInt(receipt.blockNumber, 16);
+
+  return { txHash, affected, blockNumber };
+}
+
+/**
  * Select by `record_hash` (value column). On FISCO BCOS 2.x, `Condition.eq` on the
  * primary key field is not applied reliably for `select`; filtering on `record_hash`
  * returns a single row as expected. Callers that only have `index_hash` should compute
@@ -221,6 +269,7 @@ module.exports = {
   getChainConfigGaps,
   getBlockNumber,
   insertRecord,
+  updateRecord,
   createCaseRegistryRecordFromKeystore,
   selectRecord,
   selectRecordByIndexHash

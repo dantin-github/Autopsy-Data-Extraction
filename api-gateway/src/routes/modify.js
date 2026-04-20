@@ -5,10 +5,12 @@ const express = require('express');
 const config = require('../config');
 const hashOnly = require('../services/hashOnly');
 const integrity = require('../services/integrity');
+const chain = require('../services/chain');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const caseRegistryTx = require('../services/caseRegistryTx');
 const requirePoliceSession = require('../middleware/requirePoliceSession');
 const requireJudgeSession = require('../middleware/requireJudgeSession');
+const requireAnySession = require('../middleware/requireAnySession');
 
 const router = express.Router();
 
@@ -30,6 +32,26 @@ function hexEqLo(a, b) {
 function pendingStorageKey(caseId, proposalId) {
   const pid = String(proposalId).trim().toLowerCase();
   return `${String(caseId).trim()}::pending-${pid}`;
+}
+
+/** @returns {{ caseId: string, pendingKey: string }|null} */
+function findPendingEntryForProposal(recordStore, proposalIdHex) {
+  const s = String(proposalIdHex).replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(s)) {
+    return null;
+  }
+  const pid = `0x${s.toLowerCase()}`;
+  const needle = `::pending-${pid}`;
+  for (const k of recordStore.keys()) {
+    const idx = k.indexOf('::pending-');
+    if (idx === -1) {
+      continue;
+    }
+    if (k.slice(idx) === needle) {
+      return { caseId: k.slice(0, idx), pendingKey: k };
+    }
+  }
+  return null;
 }
 
 /**
@@ -198,9 +220,252 @@ router.post('/api/modify/propose', requirePoliceSession, async (req, res, next) 
 });
 
 /**
- * GET /api/modify/:proposalId — S7.1 验收：法官会话下可读链上状态（如 Pending）。S7.5 再扩展鉴权与字段。
+ * POST /api/modify/approve — judge session + keystore signing; chain `approve` (S7.2).
  */
-router.get('/api/modify/:proposalId', requireJudgeSession, async (req, res, next) => {
+router.post('/api/modify/approve', requireJudgeSession, async (req, res, next) => {
+  const body = req.body || {};
+  let proposalIdHex = body.proposalId != null ? String(body.proposalId).trim() : '';
+  const signingPassword = body.signingPassword;
+
+  if (!proposalIdHex) {
+    const err = new Error('proposalId is required');
+    err.status = 400;
+    return next(err);
+  }
+  if (signingPassword == null || String(signingPassword) === '') {
+    const err = new Error('signingPassword is required');
+    err.status = 400;
+    return next(err);
+  }
+
+  const s = proposalIdHex.replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(s)) {
+    const err = new Error('proposalId must be 32 bytes hex (with or without 0x)');
+    err.status = 400;
+    return next(err);
+  }
+  proposalIdHex = `0x${s.toLowerCase()}`;
+
+  if (!String(config.caseRegistryAddr || '').trim()) {
+    const err = new Error('CASE_REGISTRY_ADDR is not configured');
+    err.status = 503;
+    err.code = 'CASE_REGISTRY_ADDR_MISSING';
+    return next(err);
+  }
+
+  try {
+    const { txHash, blockNumber, proposalApproved } = await caseRegistryTx.approveFromUserKeystore({
+      userId: req.judgeUserId,
+      signingPassword: String(signingPassword),
+      proposalIdHex
+    });
+    const out = {
+      proposalId: proposalIdHex,
+      txHash,
+      blockNumber
+    };
+    if (proposalApproved) {
+      out.proposalApproved = proposalApproved;
+    }
+    return res.status(200).json(out);
+  } catch (e) {
+    if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
+      e.status = 503;
+    } else if (e && e.code === 'CASE_REGISTRY_ABI_MISSING') {
+      e.status = 503;
+    } else if (e && e.status) {
+      /* keep */
+    } else if (e && e.code === 'APPROVE_FAILED' && e.status) {
+      /* keep */
+    }
+    return next(e);
+  }
+});
+
+/**
+ * POST /api/modify/reject — judge session + keystore signing; chain `reject` (S7.3).
+ */
+router.post('/api/modify/reject', requireJudgeSession, async (req, res, next) => {
+  const body = req.body || {};
+  let proposalIdHex = body.proposalId != null ? String(body.proposalId).trim() : '';
+  const signingPassword = body.signingPassword;
+  const rejectReason = body.reason != null ? String(body.reason) : '';
+
+  if (!proposalIdHex) {
+    const err = new Error('proposalId is required');
+    err.status = 400;
+    return next(err);
+  }
+  if (signingPassword == null || String(signingPassword) === '') {
+    const err = new Error('signingPassword is required');
+    err.status = 400;
+    return next(err);
+  }
+  if (rejectReason.trim() === '') {
+    const err = new Error('reason is required');
+    err.status = 400;
+    return next(err);
+  }
+
+  const s = proposalIdHex.replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(s)) {
+    const err = new Error('proposalId must be 32 bytes hex (with or without 0x)');
+    err.status = 400;
+    return next(err);
+  }
+  proposalIdHex = `0x${s.toLowerCase()}`;
+
+  if (!String(config.caseRegistryAddr || '').trim()) {
+    const err = new Error('CASE_REGISTRY_ADDR is not configured');
+    err.status = 503;
+    err.code = 'CASE_REGISTRY_ADDR_MISSING';
+    return next(err);
+  }
+
+  try {
+    const { txHash, blockNumber, proposalRejected } = await caseRegistryTx.rejectFromUserKeystore({
+      userId: req.judgeUserId,
+      signingPassword: String(signingPassword),
+      proposalIdHex,
+      rejectReason
+    });
+    const out = {
+      proposalId: proposalIdHex,
+      txHash,
+      blockNumber,
+      reason: rejectReason.trim()
+    };
+    if (proposalRejected) {
+      out.proposalRejected = proposalRejected;
+    }
+    return res.status(200).json(out);
+  } catch (e) {
+    if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
+      e.status = 503;
+    } else if (e && e.code === 'CASE_REGISTRY_ABI_MISSING') {
+      e.status = 503;
+    } else if (e && e.status) {
+      /* keep */
+    } else if (e && e.code === 'REJECT_FAILED' && e.status) {
+      /* keep */
+    }
+    return next(e);
+  }
+});
+
+/**
+ * POST /api/modify/execute — police session + keystore signing; chain `execute`; apply pending snapshot to main case key (S7.4).
+ */
+router.post('/api/modify/execute', requirePoliceSession, async (req, res, next) => {
+  const body = req.body || {};
+  let proposalIdHex = body.proposalId != null ? String(body.proposalId).trim() : '';
+  const signingPassword = body.signingPassword;
+
+  if (!proposalIdHex) {
+    const err = new Error('proposalId is required');
+    err.status = 400;
+    return next(err);
+  }
+  if (signingPassword == null || String(signingPassword) === '') {
+    const err = new Error('signingPassword is required');
+    err.status = 400;
+    return next(err);
+  }
+
+  const s = proposalIdHex.replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(s)) {
+    const err = new Error('proposalId must be 32 bytes hex (with or without 0x)');
+    err.status = 400;
+    return next(err);
+  }
+  proposalIdHex = `0x${s.toLowerCase()}`;
+
+  if (!String(config.caseRegistryAddr || '').trim()) {
+    const err = new Error('CASE_REGISTRY_ADDR is not configured');
+    err.status = 503;
+    err.code = 'CASE_REGISTRY_ADDR_MISSING';
+    return next(err);
+  }
+
+  const recordStore = getDefaultRecordStore();
+  const pendingLoc = findPendingEntryForProposal(recordStore, proposalIdHex);
+  if (!pendingLoc) {
+    const err = new Error('no pending snapshot for this proposal in local store');
+    err.status = 400;
+    err.code = 'PENDING_SNAPSHOT_NOT_FOUND';
+    return next(err);
+  }
+
+  const pendingFull = recordStore.get(pendingLoc.pendingKey);
+  if (pendingFull == null) {
+    const err = new Error('pending snapshot missing');
+    err.status = 400;
+    return next(err);
+  }
+
+  try {
+    const { txHash, blockNumber, proposalExecuted } = await caseRegistryTx.executeFromUserKeystore({
+      userId: req.policeUserId,
+      signingPassword: String(signingPassword),
+      proposalIdHex
+    });
+
+    recordStore.save(pendingLoc.caseId, pendingFull);
+    recordStore.remove(pendingLoc.pendingKey);
+
+    const indexHashRaw = hashOnly.computeIndexHash(pendingLoc.caseId);
+    let newRecordHashRaw;
+    try {
+      newRecordHashRaw = hashOnly.computeRecordHashFromJson(pendingFull);
+    } catch {
+      newRecordHashRaw = null;
+    }
+
+    const out = {
+      proposalId: proposalIdHex,
+      caseId: pendingLoc.caseId,
+      txHash,
+      blockNumber,
+      pendingKey: pendingLoc.pendingKey
+    };
+    if (proposalExecuted) {
+      out.proposalExecuted = proposalExecuted;
+    }
+
+    if (newRecordHashRaw != null && chain.isChainConfigured()) {
+      try {
+        const crud = await chain.updateRecord({
+          indexHash: indexHashRaw,
+          recordHash: newRecordHashRaw
+        });
+        out.crudTxHash = crud.txHash;
+        out.crudBlockNumber = crud.blockNumber;
+      } catch (e) {
+        out.crudUpdateWarning =
+          't_case_hash row was not updated; CaseRegistry and local store already committed';
+        out.crudUpdateError = e && e.message ? String(e.message) : 'unknown error';
+      }
+    }
+
+    return res.status(200).json(out);
+  } catch (e) {
+    if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
+      e.status = 503;
+    } else if (e && e.code === 'CASE_REGISTRY_ABI_MISSING') {
+      e.status = 503;
+    } else if (e && e.status) {
+      /* keep */
+    } else if (e && e.code === 'EXECUTE_FAILED' && e.status) {
+      /* keep */
+    }
+    return next(e);
+  }
+});
+
+/**
+ * GET /api/modify/:proposalId — police or judge session; full on-chain proposal fields (S7.5).
+ */
+router.get('/api/modify/:proposalId', requireAnySession, async (req, res, next) => {
   let pid = req.params.proposalId != null ? String(req.params.proposalId).trim() : '';
   if (pid === '') {
     const err = new Error('proposalId is required');
@@ -228,7 +493,14 @@ router.get('/api/modify/:proposalId', requireJudgeSession, async (req, res, next
     }
     return res.status(200).json({
       proposalId: pid,
-      status: p.statusName
+      status: p.statusName,
+      proposer: p.proposer,
+      approver: p.approver,
+      oldHash: p.oldRecordHash,
+      newHash: p.newRecordHash,
+      reason: p.reason,
+      proposedAt: p.proposedAt,
+      decidedAt: p.decidedAt
     });
   } catch (e) {
     if (e && e.code === 'CHAIN_NOT_CONFIGURED') {

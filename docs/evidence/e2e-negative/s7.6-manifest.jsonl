@@ -1,0 +1,4 @@
+{"scenario":"propose_proposal_exists","endpoint":"POST /api/modify/propose","httpStatus":409,"code":"PROPOSE_FAILED","revertReason":"proposal exists","txHash":"0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"}
+{"scenario":"approve_not_pending","endpoint":"POST /api/modify/approve","httpStatus":409,"code":"APPROVE_FAILED","revertReason":"not pending","txHash":"0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"}
+{"scenario":"reject_self_reject","endpoint":"POST /api/modify/reject","httpStatus":403,"code":"REJECT_FAILED","revertReason":"self reject","txHash":"0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"}
+{"scenario":"execute_not_approved","endpoint":"POST /api/modify/execute","httpStatus":409,"code":"EXECUTE_FAILED","revertReason":"not approved","txHash":"0xa4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"}

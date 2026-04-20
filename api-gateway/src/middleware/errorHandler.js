@@ -30,6 +30,10 @@ function errorHandler(err, req, res, next) {
       ? { error: 'Internal Server Error' }
       : { error: err.message || 'Bad Request' };
 
+  if (status < 500 && err.chainError) {
+    body.chainError = err.chainError;
+  }
+
   res.status(status).json(body);
 }
 

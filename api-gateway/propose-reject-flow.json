@@ -1,0 +1,9 @@
+{
+  "caseId": "reject-flow-1776659373025",
+  "caseJson": "{\"caseId\":\"reject-flow-1776659373025\",\"examiner\":\"officer1\",\"aggregateHash\":\"3620bc07563cae75b4872997198bd6add6fcfe303d474caa947694be56263bec\",\"aggregateHashNote\":\"police-propose-change\"}",
+  "aggregateHash": "3620bc07563cae75b4872997198bd6add6fcfe303d474caa947694be56263bec",
+  "examiner": "officer1",
+  "generatedAt": "2026-04-20T04:36:51.432Z",
+  "signingPassword": "1",
+  "reason": "request update"
+}

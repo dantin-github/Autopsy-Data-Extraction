@@ -85,6 +85,89 @@ function parseProposalCreatedFromReceipt(receipt) {
   return null;
 }
 
+function parseProposalApprovedFromReceipt(receipt) {
+  if (!receipt || !Array.isArray(receipt.logs) || receipt.logs.length === 0) {
+    return null;
+  }
+  let abi;
+  try {
+    abi = loadAbi();
+  } catch {
+    return null;
+  }
+  const iface = new ethers.utils.Interface(abi);
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === 'ProposalApproved') {
+        return {
+          proposalId: ethers.utils.hexlify(parsed.args.proposalId).toLowerCase(),
+          approver: parsed.args.approver.toString().toLowerCase()
+        };
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function parseProposalRejectedFromReceipt(receipt) {
+  if (!receipt || !Array.isArray(receipt.logs) || receipt.logs.length === 0) {
+    return null;
+  }
+  let abi;
+  try {
+    abi = loadAbi();
+  } catch {
+    return null;
+  }
+  const iface = new ethers.utils.Interface(abi);
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === 'ProposalRejected') {
+        return {
+          proposalId: ethers.utils.hexlify(parsed.args.proposalId).toLowerCase(),
+          approver: parsed.args.approver.toString().toLowerCase(),
+          reason: parsed.args.reason != null ? String(parsed.args.reason) : ''
+        };
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function parseProposalExecutedFromReceipt(receipt) {
+  if (!receipt || !Array.isArray(receipt.logs) || receipt.logs.length === 0) {
+    return null;
+  }
+  let abi;
+  try {
+    abi = loadAbi();
+  } catch {
+    return null;
+  }
+  const iface = new ethers.utils.Interface(abi);
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === 'ProposalExecuted') {
+        return {
+          proposalId: ethers.utils.hexlify(parsed.args.proposalId).toLowerCase(),
+          oldHash: ethers.utils.hexlify(parsed.args.oldHash).toLowerCase(),
+          newHash: ethers.utils.hexlify(parsed.args.newHash).toLowerCase()
+        };
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
 function decodeRevertReason(outputHex) {
   if (!outputHex || outputHex === '0x') {
     return null;
@@ -100,6 +183,28 @@ function decodeRevertReason(outputHex) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Failed on-chain tx (receipt.status !== 0). Exposed to HTTP as `chainError` (S7.6).
+ * @param {Record<string, number>} [statusByReason]
+ */
+function failedRawTxError(receipt, reasonRevert, opLabel, code, statusByReason) {
+  const msg = reasonRevert || `${opLabel} failed (status ${receipt && receipt.status})`;
+  const err = new Error(msg);
+  err.code = code;
+  err.receipt = receipt;
+  err.chainError = {
+    revertReason: reasonRevert || msg,
+    txHash:
+      receipt && receipt.transactionHash ? String(receipt.transactionHash).toLowerCase() : null
+  };
+  if (reasonRevert && statusByReason && statusByReason[reasonRevert] != null) {
+    err.status = statusByReason[reasonRevert];
+  } else {
+    err.status = 400;
+  }
+  return err;
 }
 
 function loadAbi() {
@@ -307,16 +412,10 @@ async function proposeFromUserKeystore(opts) {
     if (!receiptOk(receipt)) {
       const out = getReceiptOutput(receipt);
       const reasonRevert = out ? decodeRevertReason(out) : null;
-      const msg = reasonRevert || `propose failed (status ${receipt && receipt.status})`;
-      const err = new Error(msg);
-      err.code = 'PROPOSE_FAILED';
-      if (reasonRevert === 'proposal exists') {
-        err.status = 409;
-      } else if (reasonRevert === 'old mismatch') {
-        err.status = 409;
-      }
-      err.receipt = receipt;
-      throw err;
+      throw failedRawTxError(receipt, reasonRevert, 'propose', 'PROPOSE_FAILED', {
+        'proposal exists': 409,
+        'old mismatch': 409
+      });
     }
     const txHash = receipt.transactionHash;
     if (!txHash || typeof txHash !== 'string') {
@@ -325,6 +424,370 @@ async function proposeFromUserKeystore(opts) {
     const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
     const proposalCreated = parseProposalCreatedFromReceipt(receipt);
     return { txHash, blockNumber, proposalCreated };
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Judge keystore → CaseRegistry.approve(proposalId).
+ * @param {{ userId: string, signingPassword: string, proposalIdHex: string }} opts
+ * @returns {Promise<{ txHash: string, blockNumber: number, proposalApproved: { proposalId: string, approver: string }|null }>}
+ */
+async function approveFromUserKeystore(opts) {
+  const userId = String(opts.userId || '').trim();
+  const signingPassword = opts.signingPassword != null ? String(opts.signingPassword) : '';
+  const proposalIdHex = opts.proposalIdHex != null ? String(opts.proposalIdHex).trim() : '';
+  if (!userId || !signingPassword || !proposalIdHex) {
+    const err = new Error('userId, signingPassword, and proposalId are required');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!chain.isChainConfigured()) {
+    const detail = chain.getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const addr = contractAddrOrThrow();
+
+  const encPath = path.join(apiRoot, 'data', 'keystore', `${userId}.enc`);
+  if (!fs.existsSync(encPath)) {
+    const err = new Error(`Missing keystore file ${encPath} (run: npm run seed-roles)`);
+    err.code = 'KEYSTORE_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  const userRow = userStore.findByUserId(userId);
+  if (!userRow || String(userRow.role || '').toLowerCase() !== 'judge') {
+    const err = new Error('approve is only for judge accounts');
+    err.code = 'NOT_JUDGE';
+    err.status = 403;
+    throw err;
+  }
+  const onchain = userRow && userRow.onchainAddress != null ? String(userRow.onchainAddress).trim() : '';
+  if (!onchain || !/^0x[0-9a-fA-F]{40}$/i.test(onchain)) {
+    const err = new Error('user has no onchainAddress — run: npm run seed-roles');
+    err.code = 'ONCHAIN_ADDRESS_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  let pkHex;
+  try {
+    const enc = JSON.parse(fs.readFileSync(encPath, 'utf8'));
+    pkHex = keystore.decrypt(enc, signingPassword);
+  } catch (e) {
+    if (e && e.name === 'BadPassword') {
+      const err = new Error('signing password incorrect');
+      err.code = 'BAD_SIGNING_PASSWORD';
+      err.status = 401;
+      throw err;
+    }
+    throw e;
+  }
+
+  const wallet = new ethers.Wallet(`0x${pkHex}`);
+  if (wallet.address.toLowerCase() !== onchain.toLowerCase()) {
+    const err = new Error('keystore does not match onchainAddress — re-run seed-roles');
+    err.code = 'KEYSTORE_ADDRESS_MISMATCH';
+    err.status = 400;
+    throw err;
+  }
+
+  const abi = loadAbi();
+  const proposalB32 = toBytes32(proposalIdHex);
+
+  const basePath = path.resolve(config.fiscoConfigPath);
+  const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
+  const tmpName = `.fisco-approve-${crypto.randomBytes(12).toString('hex')}.json`;
+  const tmpPath = path.join(path.dirname(basePath), tmpName);
+
+  const merged = {
+    ...base,
+    accounts: {
+      ...base.accounts,
+      _uploadRole: { type: 'ecrandom', value: pkHex }
+    }
+  };
+  fs.writeFileSync(tmpPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+
+  try {
+    const cfg = new Configuration(tmpPath);
+    const web3j = new Web3jService(cfg);
+    const receipt = await web3j.sendRawTransaction(
+      addr,
+      pickFn(abi, 'approve'),
+      [proposalB32],
+      '_uploadRole'
+    );
+    if (!receiptOk(receipt)) {
+      const out = getReceiptOutput(receipt);
+      const reasonRevert = out ? decodeRevertReason(out) : null;
+      throw failedRawTxError(receipt, reasonRevert, 'approve', 'APPROVE_FAILED', {
+        'not pending': 409,
+        'self approve': 403
+      });
+    }
+    const txHash = receipt.transactionHash;
+    if (!txHash || typeof txHash !== 'string') {
+      throw new Error('approve receipt missing transactionHash');
+    }
+    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const proposalApproved = parseProposalApprovedFromReceipt(receipt);
+    return { txHash, blockNumber, proposalApproved };
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Judge keystore → CaseRegistry.reject(proposalId, reason).
+ * @param {{ userId: string, signingPassword: string, proposalIdHex: string, rejectReason: string }} opts
+ * @returns {Promise<{ txHash: string, blockNumber: number, proposalRejected: { proposalId: string, approver: string, reason: string }|null }>}
+ */
+async function rejectFromUserKeystore(opts) {
+  const userId = String(opts.userId || '').trim();
+  const signingPassword = opts.signingPassword != null ? String(opts.signingPassword) : '';
+  const proposalIdHex = opts.proposalIdHex != null ? String(opts.proposalIdHex).trim() : '';
+  const rejectReason = opts.rejectReason != null ? String(opts.rejectReason) : '';
+  if (!userId || !signingPassword || !proposalIdHex) {
+    const err = new Error('userId, signingPassword, and proposalId are required');
+    err.status = 400;
+    throw err;
+  }
+  if (rejectReason.trim() === '') {
+    const err = new Error('reject reason is required');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!chain.isChainConfigured()) {
+    const detail = chain.getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const addr = contractAddrOrThrow();
+
+  const encPath = path.join(apiRoot, 'data', 'keystore', `${userId}.enc`);
+  if (!fs.existsSync(encPath)) {
+    const err = new Error(`Missing keystore file ${encPath} (run: npm run seed-roles)`);
+    err.code = 'KEYSTORE_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  const userRow = userStore.findByUserId(userId);
+  if (!userRow || String(userRow.role || '').toLowerCase() !== 'judge') {
+    const err = new Error('reject is only for judge accounts');
+    err.code = 'NOT_JUDGE';
+    err.status = 403;
+    throw err;
+  }
+  const onchain = userRow && userRow.onchainAddress != null ? String(userRow.onchainAddress).trim() : '';
+  if (!onchain || !/^0x[0-9a-fA-F]{40}$/i.test(onchain)) {
+    const err = new Error('user has no onchainAddress — run: npm run seed-roles');
+    err.code = 'ONCHAIN_ADDRESS_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  let pkHex;
+  try {
+    const enc = JSON.parse(fs.readFileSync(encPath, 'utf8'));
+    pkHex = keystore.decrypt(enc, signingPassword);
+  } catch (e) {
+    if (e && e.name === 'BadPassword') {
+      const err = new Error('signing password incorrect');
+      err.code = 'BAD_SIGNING_PASSWORD';
+      err.status = 401;
+      throw err;
+    }
+    throw e;
+  }
+
+  const wallet = new ethers.Wallet(`0x${pkHex}`);
+  if (wallet.address.toLowerCase() !== onchain.toLowerCase()) {
+    const err = new Error('keystore does not match onchainAddress — re-run seed-roles');
+    err.code = 'KEYSTORE_ADDRESS_MISMATCH';
+    err.status = 400;
+    throw err;
+  }
+
+  const abi = loadAbi();
+  const proposalB32 = toBytes32(proposalIdHex);
+
+  const basePath = path.resolve(config.fiscoConfigPath);
+  const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
+  const tmpName = `.fisco-reject-${crypto.randomBytes(12).toString('hex')}.json`;
+  const tmpPath = path.join(path.dirname(basePath), tmpName);
+
+  const merged = {
+    ...base,
+    accounts: {
+      ...base.accounts,
+      _uploadRole: { type: 'ecrandom', value: pkHex }
+    }
+  };
+  fs.writeFileSync(tmpPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+
+  try {
+    const cfg = new Configuration(tmpPath);
+    const web3j = new Web3jService(cfg);
+    const receipt = await web3j.sendRawTransaction(
+      addr,
+      pickFn(abi, 'reject'),
+      [proposalB32, rejectReason],
+      '_uploadRole'
+    );
+    if (!receiptOk(receipt)) {
+      const out = getReceiptOutput(receipt);
+      const reasonRevert = out ? decodeRevertReason(out) : null;
+      throw failedRawTxError(receipt, reasonRevert, 'reject', 'REJECT_FAILED', {
+        'not pending': 409,
+        'self reject': 403
+      });
+    }
+    const txHash = receipt.transactionHash;
+    if (!txHash || typeof txHash !== 'string') {
+      throw new Error('reject receipt missing transactionHash');
+    }
+    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const proposalRejected = parseProposalRejectedFromReceipt(receipt);
+    return { txHash, blockNumber, proposalRejected };
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Police keystore → CaseRegistry.execute(proposalId). Caller must be original proposer on-chain.
+ * @param {{ userId: string, signingPassword: string, proposalIdHex: string }} opts
+ * @returns {Promise<{ txHash: string, blockNumber: number, proposalExecuted: { proposalId: string, oldHash: string, newHash: string }|null }>}
+ */
+async function executeFromUserKeystore(opts) {
+  const userId = String(opts.userId || '').trim();
+  const signingPassword = opts.signingPassword != null ? String(opts.signingPassword) : '';
+  const proposalIdHex = opts.proposalIdHex != null ? String(opts.proposalIdHex).trim() : '';
+  if (!userId || !signingPassword || !proposalIdHex) {
+    const err = new Error('userId, signingPassword, and proposalId are required');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!chain.isChainConfigured()) {
+    const detail = chain.getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const addr = contractAddrOrThrow();
+
+  const encPath = path.join(apiRoot, 'data', 'keystore', `${userId}.enc`);
+  if (!fs.existsSync(encPath)) {
+    const err = new Error(`Missing keystore file ${encPath} (run: npm run seed-roles)`);
+    err.code = 'KEYSTORE_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  const userRow = userStore.findByUserId(userId);
+  if (!userRow || String(userRow.role || '').toLowerCase() !== 'police') {
+    const err = new Error('execute is only for police accounts');
+    err.code = 'NOT_POLICE';
+    err.status = 403;
+    throw err;
+  }
+  const onchain = userRow && userRow.onchainAddress != null ? String(userRow.onchainAddress).trim() : '';
+  if (!onchain || !/^0x[0-9a-fA-F]{40}$/i.test(onchain)) {
+    const err = new Error('user has no onchainAddress — run: npm run seed-roles');
+    err.code = 'ONCHAIN_ADDRESS_MISSING';
+    err.status = 400;
+    throw err;
+  }
+
+  let pkHex;
+  try {
+    const enc = JSON.parse(fs.readFileSync(encPath, 'utf8'));
+    pkHex = keystore.decrypt(enc, signingPassword);
+  } catch (e) {
+    if (e && e.name === 'BadPassword') {
+      const err = new Error('signing password incorrect');
+      err.code = 'BAD_SIGNING_PASSWORD';
+      err.status = 401;
+      throw err;
+    }
+    throw e;
+  }
+
+  const wallet = new ethers.Wallet(`0x${pkHex}`);
+  if (wallet.address.toLowerCase() !== onchain.toLowerCase()) {
+    const err = new Error('keystore does not match onchainAddress — re-run seed-roles');
+    err.code = 'KEYSTORE_ADDRESS_MISMATCH';
+    err.status = 400;
+    throw err;
+  }
+
+  const abi = loadAbi();
+  const proposalB32 = toBytes32(proposalIdHex);
+
+  const basePath = path.resolve(config.fiscoConfigPath);
+  const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
+  const tmpName = `.fisco-execute-${crypto.randomBytes(12).toString('hex')}.json`;
+  const tmpPath = path.join(path.dirname(basePath), tmpName);
+
+  const merged = {
+    ...base,
+    accounts: {
+      ...base.accounts,
+      _uploadRole: { type: 'ecrandom', value: pkHex }
+    }
+  };
+  fs.writeFileSync(tmpPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+
+  try {
+    const cfg = new Configuration(tmpPath);
+    const web3j = new Web3jService(cfg);
+    const receipt = await web3j.sendRawTransaction(
+      addr,
+      pickFn(abi, 'execute'),
+      [proposalB32],
+      '_uploadRole'
+    );
+    if (!receiptOk(receipt)) {
+      const out = getReceiptOutput(receipt);
+      const reasonRevert = out ? decodeRevertReason(out) : null;
+      throw failedRawTxError(receipt, reasonRevert, 'execute', 'EXECUTE_FAILED', {
+        'not approved': 409,
+        'not proposer': 403,
+        'record changed': 409
+      });
+    }
+    const txHash = receipt.transactionHash;
+    if (!txHash || typeof txHash !== 'string') {
+      throw new Error('execute receipt missing transactionHash');
+    }
+    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const proposalExecuted = parseProposalExecutedFromReceipt(receipt);
+    return { txHash, blockNumber, proposalExecuted };
   } finally {
     try {
       fs.unlinkSync(tmpPath);
@@ -467,6 +930,9 @@ async function createRecordFromUserKeystore(opts) {
 module.exports = {
   createRecordFromUserKeystore,
   proposeFromUserKeystore,
+  approveFromUserKeystore,
+  rejectFromUserKeystore,
+  executeFromUserKeystore,
   getRecordHashOnRegistry,
   getProposalFromRegistry,
   toBytes32,
