@@ -202,6 +202,20 @@ See `blockchain/README.md` and `blockchain-setup/README.md` for details.
 
 ---
 
+## Central API Gateway (Node) & Phase 2 contract
+
+The repository includes **`api-gateway/`** — an HTTP gateway that:
+
+- uploads case hashes (`POST /api/upload`) and writes to FISCO CRUD + optional **`CaseRegistry`** (`CHAIN_MODE=contract`);
+- runs the **two-party** flow (`/api/modify/*`) against **`CaseRegistry.sol`**;
+- appends contract events to **`data/audit.jsonl`** and exposes **`GET /api/audit`** (judge session).
+
+**Full setup (clean machine):** follow **`api-gateway/README.md`** end-to-end: Node 18+, `npm install`, `.env` from **`.env.example`**, `npm run compile`, `npm run deploy-contract`, `npm run seed-users`, `npm run seed-roles`, `npm run dev`.
+
+**Dissertation evidence (Phase 9):** **`docs/evidence/`** — ABI copy, CSVs of negative tx hashes, HTTP samples, **chapter → evidence** mapping (`chapter-evidence-mapping.md`), WeBASE screenshot checklist (`docs/evidence/webase/README.md`). Regenerate the ABI copy after contract changes (see `docs/evidence/README.md`).
+
+---
+
 ## License
 
 This plugin is provided for research and academic use. It is independent of

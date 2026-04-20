@@ -268,6 +268,7 @@ module.exports = {
   isChainConfigured,
   getChainConfigGaps,
   getBlockNumber,
+  getWeb3jService,
   insertRecord,
   updateRecord,
   createCaseRegistryRecordFromKeystore,

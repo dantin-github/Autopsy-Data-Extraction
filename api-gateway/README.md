@@ -2,6 +2,8 @@
 
 Node.js / Express gateway: `/login` (police OTP + judge session), `POST /api/upload`, `POST /api/query`. Optional FISCO BCOS CRUD on `t_case_hash`.
 
+**Thesis / evidence (Phase 9):** the repo root **`docs/evidence/`** holds an ABI copy, tx-hash CSVs, API samples, and a chapter→evidence mapping. WeBASE screenshots are documented in **`docs/evidence/webase/README.md`** (capture locally).
+
 ## Requirements
 
 - Node.js **18+**
@@ -199,11 +201,73 @@ Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from
 
 若本地无待定条目 → **400** `PENDING_SNAPSHOT_NOT_FOUND`。合约侧：**非 Approved**、**非原 proposer**、或链上 **`record_hash` 已变** → **4xx**（见 `EXECUTE_FAILED`）。
 
+#### 7.4 全流程复核 + 审计日志（推荐按序执行）
+
+目标：在**真链**上跑通 **upload → propose → approve → execute**，再用 **`GET /api/audit`** / **`data/audit.jsonl`** 看到 **`RecordCreated`**、**`ProposalCreated`**、**`ProposalApproved`**、**`ProposalExecuted`**（upload 与建案对应 **`RecordCreated`**）。
+
+**准备（一次性）**
+
+1. **`.env`**：`SESSION_SECRET`、`CHAIN_MODE=contract`、`CASE_REGISTRY_ADDR`、`MAIL_DRY_RUN=1`（OTP 打日志）、`FISCO_CONFIG` / 证书 / **`gateway.pem`**。
+2. **`npm run compile -- contracts/CaseRegistry.sol`** → **`npm run deploy-contract`** 写入合约地址。
+3. **`npm run seed-users`** → **`npm run seed-roles`**（警察/法官 **`onchainAddress`** + keystore；登录/签名密码示例为 **`1`**）。
+4. **先起网关再跑交易**：**`npm run dev`**。`eventListener` 首次运行会把 **`lastBlockSeen`** 设为当前块高，**只扫之后的新块**；因此要在网关已启动后再发交易。可选：清空 **`data/audit.jsonl`** 便于阅读（不要误删正在用的 **`data/users.json`**）。等 **~5s** 让第一轮轮询完成后再发下一笔。
+
+**步骤（同一终端，目录均为 `api-gateway`）**
+
+1. **生成上传体**（新 `caseId`）：`node scripts/gen-e2e-upload-body.js`  
+   已包含 **`signingPassword: "1"`**（与 **`seed-roles`** 一致；若你改了密码请改 JSON）。
+
+2. **警察 OTP**：`curl -s -X POST http://localhost:3000/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"username\":\"officer1\",\"password\":\"1\"}"`  
+   在终端日志里找到 **16 位 hex OTP**（`MAIL_DRY_RUN`）。
+
+3. **上传**：`curl -s -X POST http://localhost:3000/api/upload -H "Content-Type: application/json" -H "X-Auth-Token: <上一步OTP>" --data-binary @e2e-upload-body.json`  
+   确认返回 **200** 且链上 **`CaseRegistry`** 已建案。
+
+4. **生成提议体**（依赖上一步写入的 **`recordStore`**，路径须与网关一致，默认 **`~/.case_record_store.json`**）：`node scripts/gen-e2e-propose-body.js`  
+   生成 **`e2e-propose-body.json`**。
+
+5. **警察会话 Cookie**（与测试一致）：先 **`POST /login`** 再 **`POST /api/auth/police-otp`**（body：`username`、`otp`）。可用浏览器登录页，或用 curl 保存 **`cookies.txt`**。
+
+6. **提议**：`curl -s -b cookies.txt -X POST http://localhost:3000/api/modify/propose -H "Content-Type: application/json" --data-binary @e2e-propose-body.json`  
+   记下返回的 **`proposalId`**。
+
+7. **法官登录**：`curl -s -c judge.txt -X POST http://localhost:3000/login -H "Content-Type: application/json" -H "Accept: application/json" -d "{\"username\":\"judge1\",\"password\":\"1\"}"`
+
+8. **审批**：`curl -s -b judge.txt -X POST http://localhost:3000/api/modify/approve -H "Content-Type: application/json" -d "{\"proposalId\":\"<proposalId>\",\"signingPassword\":\"1\"}"`
+
+9. **执行**（再换警察 Cookie）：`curl -s -b cookies.txt -X POST http://localhost:3000/api/modify/execute -H "Content-Type: application/json" -d "{\"proposalId\":\"<proposalId>\",\"signingPassword\":\"1\"}"`
+
+10. **等 ~5～10 秒**（多轮区块轮询），然后：  
+    - **`Get-Content .\\data\\audit.jsonl`**（Windows），或  
+    - **`curl -s -b judge.txt "http://localhost:3000/api/audit?limit=30"`**
+
+若 **`audit.jsonl` 仍为空**：确认 **`CASE_REGISTRY_ADDR`** 与链上部署一致、网关日志无 **`eventListener: skipped`**，且交易发生在 **`npm run dev` 启动之后**的新块里。
+
 ### S7.6：负向 HTTP + `chainError`
 
 合约 **`propose` / `approve` / `reject` / `execute`** 若交易回滚（receipt 失败），网关返回 **4xx**（常见 **409** 冲突、**403** 禁止），JSON body 含 **`error`**（人类可读）以及 **`chainError.revertReason`**（与合约 **`require`** 字符串一致，若能从 receipt 解码）和 **`chainError.txHash`**（失败交易的哈希）。
 
 **`npm test`** 中的 **`test/e2e-modify-negative.test.js`** 用 HTTP 覆盖四条负向路径并每次重写证据清单 **`docs/evidence/e2e-negative/s7.6-manifest.jsonl`**（含场景名、HTTP 状态、`revertReason`、`txHash`；测试中使用模拟失败时的占位 txHash，真链联调时由实际回滚交易替换）。
+
+## Phase 8 · 事件审计流（S8.1 / S8.2）
+
+前提：**`CHAIN_MODE=contract`**、**`CASE_REGISTRY_ADDR`**、**`conf/fisco-config.json`** + **`gateway.pem`**，已 **`npm run compile`**，合约 ABI 在 **`build/CaseRegistry.abi`**。
+
+### S8.1 · `eventListener`（`src/services/eventListener.js`）
+
+- 网关进程启动（**`npm start`** / **`npm run dev`**）后，若链配置齐全且 **`CASE_REGISTRY_ADDR`** 已设置，则每 **`EVENT_LISTENER_POLL_MS`**（默认 **5000**）轮询新区块，扫描 **`CaseRegistry`** 合约 receipt 中的 **`RecordCreated`**、**`ProposalCreated`**、**`ProposalApproved`**、**`ProposalRejected`**、**`ProposalExecuted`**，以 JSON 行追加写入 **`data/audit.jsonl`**（可通过 **`AUDIT_LOG_PATH`** 覆盖）。
+- 进度保存在 **`data/audit-state.json`**（**`lastBlockSeen`**）。首次启动会将 **`lastBlockSeen`** 设为当前块高（不追溯历史块）；若需从更早块重扫，可停网关后删除该状态文件再启动。
+- 关闭轮询：**`ENABLE_EVENT_LISTENER=0`**。
+
+跑完 Phase 7 的正向上链流程后，**`data/audit.jsonl`** 应至少新增 **4** 行（与 **`ProposalCreated` … `ProposalExecuted`** 等事件对应）。
+
+本地**无链**时想先看审计文件长什么样：在 **`api-gateway`** 目录执行 **`npm run simulate-audit`**（会**追加** 4 行模拟事件；若要先清空再写，用 **`npm run simulate-audit -- --reset`**）。再 **`GET /api/audit`**（法官）或打开 **`data/audit.jsonl`**（与 `eventListener` 写入格式一致）。
+
+### S8.2 · `GET /api/audit`
+
+- **法官会话** Cookie；查询参数：**`limit`**（默认 **50**，最大 **500**）、**`since`**（ISO 时间或 Unix 毫秒整数，只返回该时刻及之后的行）。
+- 返回 JSON：**`items`**（按 **`blockNumber`** / **`logIndex`** **倒序**，即最新在前）、**`limit`**。
+- 性能：**`test/audit.test.js`** 对约 **1000** 行 JSONL 做 **`readAuditLines`** 抽样，满足 **p95 under 200ms** 的本地验收。
 
 ## Scripts (see `package.json`)
 

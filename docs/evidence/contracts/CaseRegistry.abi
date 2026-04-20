@@ -1,0 +1,343 @@
+[
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getProposal",
+    "outputs": [
+      {
+        "name": "indexHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "oldRecordHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "newRecordHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "proposer",
+        "type": "address"
+      },
+      {
+        "name": "approver",
+        "type": "address"
+      },
+      {
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "name": "proposedAt",
+        "type": "uint256"
+      },
+      {
+        "name": "decidedAt",
+        "type": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "name": "indexHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "oldHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "newHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "propose",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "judges",
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "a",
+        "type": "address"
+      }
+    ],
+    "name": "addJudge",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "reject",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "indexHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "recordHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "createRecord",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "approve",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "name": "indexHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getRecordHash",
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "execute",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "police",
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "name": "a",
+        "type": "address"
+      }
+    ],
+    "name": "addPolice",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "indexHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "recordHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "RecordCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "name": "indexHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "proposer",
+        "type": "address"
+      }
+    ],
+    "name": "ProposalCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "approver",
+        "type": "address"
+      }
+    ],
+    "name": "ProposalApproved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "approver",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "ProposalRejected",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "oldHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "name": "newHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ProposalExecuted",
+    "type": "event"
+  }
+]

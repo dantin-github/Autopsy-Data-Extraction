@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/query",
+    "headers": {
+      "Content-Type": "application/json",
+      "Cookie": "<judge session>"
+    },
+    "body": {
+      "caseId": "CASE-EXAMPLE-001"
+    }
+  },
+  "response_example": {
+    "caseId": "CASE-EXAMPLE-001",
+    "onChain": true,
+    "recordHashMatch": true,
+    "chainRecordHash": "0x…",
+    "localRecordHash": "0x…"
+  }
+}

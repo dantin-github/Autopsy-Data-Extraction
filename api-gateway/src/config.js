@@ -114,6 +114,27 @@ function uploadContractEnabled() {
   return uploadUseCaseRegistry;
 }
 
+const auditLogPath =
+  process.env.AUDIT_LOG_PATH != null && String(process.env.AUDIT_LOG_PATH).trim() !== ''
+    ? path.resolve(process.cwd(), String(process.env.AUDIT_LOG_PATH).trim())
+    : path.join(__dirname, '..', 'data', 'audit.jsonl');
+
+const auditStatePath =
+  process.env.AUDIT_STATE_PATH != null && String(process.env.AUDIT_STATE_PATH).trim() !== ''
+    ? path.resolve(process.cwd(), String(process.env.AUDIT_STATE_PATH).trim())
+    : path.join(__dirname, '..', 'data', 'audit-state.json');
+
+/** P8: poll CaseRegistry logs every N ms (default 5000). */
+const eventListenerPollMsRaw = Number(process.env.EVENT_LISTENER_POLL_MS);
+const eventListenerPollMs =
+  Number.isFinite(eventListenerPollMsRaw) && eventListenerPollMsRaw >= 1000
+    ? eventListenerPollMsRaw
+    : 5000;
+
+const eventListenerEnabled = !['0', 'false', 'no'].includes(
+  String(process.env.ENABLE_EVENT_LISTENER || '1').toLowerCase()
+);
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -135,5 +156,9 @@ module.exports = {
   caseRegistryAddr,
   uploadUseCaseRegistry,
   chainMode,
-  uploadContractEnabled
+  uploadContractEnabled,
+  auditLogPath,
+  auditStatePath,
+  eventListenerPollMs,
+  eventListenerEnabled
 };

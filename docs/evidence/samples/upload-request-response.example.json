@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/upload",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Auth-Token": "<one-time OTP from POST /login>"
+    },
+    "body": {
+      "caseId": "CASE-EXAMPLE-001",
+      "examiner": "officer1",
+      "aggregateHash": "<SHA-256 from integrity over caseJson>",
+      "generatedAt": "2026-04-20T12:00:00.000Z",
+      "caseJson": "<string: full verified JSON>",
+      "signingPassword": "<keystore password when CHAIN_MODE=contract>"
+    }
+  },
+  "response_example": {
+    "indexHash": "0x…",
+    "recordHash": "0x…",
+    "txHash": "0x…",
+    "blockNumber": 0,
+    "caseRegistryTxHash": "0x…",
+    "caseRegistryBlockNumber": 0
+  }
+}

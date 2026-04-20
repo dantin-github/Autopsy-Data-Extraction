@@ -1,0 +1,5 @@
+scenario,http_status,code,revert_reason,tx_hash_note,source
+propose_proposal_exists,409,PROPOSE_FAILED,proposal exists,mock_in_ci_test,e2e-negative/s7.6-manifest.jsonl
+approve_not_pending,409,APPROVE_FAILED,not pending,mock_in_ci_test,e2e-negative/s7.6-manifest.jsonl
+reject_self_reject,403,REJECT_FAILED,self reject,mock_in_ci_test,e2e-negative/s7.6-manifest.jsonl
+execute_not_approved,409,EXECUTE_FAILED,not approved,mock_in_ci_test,e2e-negative/s7.6-manifest.jsonl

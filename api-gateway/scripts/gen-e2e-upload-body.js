@@ -24,12 +24,14 @@ const caseJson = JSON.stringify({
   aggregateHashNote: 'SHA-256 of body'
 });
 
+// signingPassword: required when CHAIN_MODE=contract + CASE_REGISTRY_ADDR (same as seed-roles keystore password).
 const uploadBody = {
   caseId,
   examiner: 'officer1',
   aggregateHash: agg,
   generatedAt: new Date().toISOString(),
-  caseJson
+  caseJson,
+  signingPassword: '1'
 };
 
 const root = path.join(__dirname, '..');

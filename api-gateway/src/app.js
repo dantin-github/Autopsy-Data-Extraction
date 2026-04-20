@@ -8,6 +8,7 @@ const authRouter = require('./routes/auth');
 const uploadRouter = require('./routes/upload');
 const queryRouter = require('./routes/query');
 const modifyRouter = require('./routes/modify');
+const auditRouter = require('./routes/audit');
 const requireJudgeSession = require('./middleware/requireJudgeSession');
 const requirePoliceToken = require('./middleware/requirePoliceToken');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
@@ -56,6 +57,7 @@ function createApp() {
   app.use(uploadRouter);
   app.use(queryRouter);
   app.use(modifyRouter);
+  app.use(auditRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,0 +1,7 @@
+step,description,tx_hash,block_number,notes
+deploy,CaseRegistry deploy,<fill>,<fill>,from deploy-contract / WeBASE
+createRecord,POST /api/upload CaseRegistry path,<fill>,<fill>,caseRegistryTxHash in response
+propose,POST /api/modify/propose,<fill>,<fill>,proposalId in response
+approve,POST /api/modify/approve,<fill>,<fill>,judge keystore
+execute,POST /api/modify/execute,<fill>,<fill>,police keystore
+crud_update,optional t_case_hash update after execute,<fill>,<fill>,crudTxHash if present

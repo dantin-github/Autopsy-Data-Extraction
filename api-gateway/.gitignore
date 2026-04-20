@@ -17,6 +17,16 @@ e2e-query-body.json
 # Local scratch from manual curl / PowerShell (S7.1 verify)
 _propose.json
 upload-verify.json
+police-jar.txt
+judge-jar.txt
+approve-body.json
+execute-body.json
+police-otp-body.json
+e2e-propose-body.json
+
+# Runtime audit log (local chain)
+data/audit.jsonl
+data/audit-state.json
 
 # solc output (regenerate: npm run compile -- contracts/HelloWorld.sol)
 build/

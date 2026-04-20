@@ -23,7 +23,9 @@
     "test": "node --test --test-concurrency=1 ./test/**/*.test.js",
     "smoke": "node scripts/smoke.js",
     "compile": "node scripts/compile.js",
-    "deploy-contract": "node scripts/deploy-contract.js"
+    "deploy-contract": "node scripts/deploy-contract.js",
+    "simulate-audit": "node scripts/simulate-audit-events.js",
+    "gen-e2e-propose-body": "node scripts/gen-e2e-propose-body.js"
   },
   "engines": {
     "node": ">=18"
