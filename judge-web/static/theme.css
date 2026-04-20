@@ -1,0 +1,288 @@
+/* Judge Web — aligned with api-gateway/src/views/login.html design tokens */
+
+:root {
+  --jw-bg-deep: #06080c;
+  --jw-bg: #0a0e14;
+  --jw-surface: #111820;
+  --jw-surface-2: #161d27;
+  --jw-border: #2a3544;
+  --jw-border-strong: #3d4f63;
+  --jw-text: #e8edf4;
+  --jw-text-muted: #8b98a8;
+  --jw-accent: #3dd6f5;
+  --jw-accent-dim: rgba(61, 214, 245, 0.14);
+  --jw-danger: #f87171;
+  --jw-radius: 10px;
+  --jw-radius-sm: 6px;
+  --jw-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --jw-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --jw-font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --jw-step: 4px;
+}
+
+/* Full-app backdrop (same layers as login .backdrop, scoped to Streamlit root) */
+.stApp {
+  font-family: var(--jw-font);
+  color: var(--jw-text);
+  background: radial-gradient(
+      ellipse 120% 80% at 50% -20%,
+      rgba(61, 214, 245, 0.08),
+      transparent 55%
+    ),
+    radial-gradient(ellipse 80% 50% at 100% 100%, rgba(30, 58, 95, 0.35), transparent 50%),
+    linear-gradient(180deg, var(--jw-bg-deep) 0%, var(--jw-bg) 40%, #070a10 100%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 31px,
+      rgba(255, 255, 255, 0.02) 31px,
+      rgba(255, 255, 255, 0.02) 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 31px,
+      rgba(255, 255, 255, 0.02) 31px,
+      rgba(255, 255, 255, 0.02) 32px
+    );
+}
+
+[data-testid="stHeader"] {
+  background: transparent;
+}
+
+[data-testid="stToolbar"] {
+  background: transparent;
+}
+
+/* Main block: center content like login panel width */
+.main .block-container {
+  max-width: 720px;
+  padding-top: calc(var(--jw-step) * 6);
+  padding-bottom: calc(var(--jw-step) * 8);
+}
+
+/* Shell panel (login.html .panel) */
+.jw-panel {
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-right: auto;
+  background: linear-gradient(165deg, var(--jw-surface) 0%, var(--jw-surface-2) 100%);
+  border: 1px solid var(--jw-border);
+  border-radius: var(--jw-radius);
+  box-shadow: var(--jw-shadow);
+  padding: calc(var(--jw-step) * 8) calc(var(--jw-step) * 7);
+}
+
+.jw-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--jw-step) * 4);
+  margin-bottom: calc(var(--jw-step) * 5);
+}
+
+.jw-mark {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--jw-radius-sm);
+  background: var(--jw-accent-dim);
+  border: 1px solid rgba(61, 214, 245, 0.35);
+  display: grid;
+  place-items: center;
+}
+
+.jw-mark svg {
+  width: 24px;
+  height: 24px;
+}
+
+.jw-brand h1 {
+  margin: 0 0 var(--jw-step);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  color: var(--jw-text);
+}
+
+.jw-brand p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--jw-text-muted);
+  line-height: 1.45;
+}
+
+.jw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: calc(var(--jw-step) * 3);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jw-accent);
+  background: var(--jw-accent-dim);
+  border: 1px solid rgba(61, 214, 245, 0.25);
+  font-family: var(--jw-font-mono);
+}
+
+.jw-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--jw-accent);
+  box-shadow: 0 0 8px var(--jw-accent);
+}
+
+.jw-foot {
+  margin-top: calc(var(--jw-step) * 6);
+  padding-top: calc(var(--jw-step) * 5);
+  border-top: 1px solid var(--jw-border);
+  font-size: 0.6875rem;
+  color: var(--jw-text-muted);
+  line-height: 1.5;
+  font-family: var(--jw-font-mono);
+}
+
+.jw-foot strong {
+  color: #a8b4c4;
+  font-weight: 600;
+}
+
+/* In-panel notice (aligned with login informational tone) */
+.jw-banner--info {
+  margin-bottom: 0;
+  padding: calc(var(--jw-step) * 3) calc(var(--jw-step) * 4);
+  border-radius: var(--jw-radius-sm);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #a5f3fc;
+  background: rgba(61, 214, 245, 0.12);
+  border: 1px solid rgba(61, 214, 245, 0.35);
+}
+
+/* Primary buttons — login submit gradient */
+.stButton > button {
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: var(--jw-radius-sm) !important;
+  color: #041014 !important;
+  background: linear-gradient(180deg, #5ee7ff 0%, var(--jw-accent) 100%) !important;
+  transition: filter 0.15s ease, transform 0.08s ease !important;
+}
+
+.stButton > button:hover {
+  filter: brightness(1.06) !important;
+}
+
+.stButton > button:active {
+  transform: translateY(1px) !important;
+}
+
+/* Sidebar — surface gradient */
+[data-testid="stSidebar"] {
+  background: linear-gradient(165deg, var(--jw-surface) 0%, var(--jw-surface-2) 100%) !important;
+  border-right: 1px solid var(--jw-border) !important;
+}
+
+[data-testid="stSidebar"] .block-container {
+  padding-top: 1.5rem;
+}
+
+/* Code blocks in sidebar */
+[data-testid="stSidebar"] [data-testid="stCodeBlock"] {
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid var(--jw-border) !important;
+  border-radius: var(--jw-radius-sm) !important;
+}
+
+/* st.info — align with gateway banner.ok tones */
+.stAlert {
+  border-radius: var(--jw-radius-sm) !important;
+  border: 1px solid rgba(61, 214, 245, 0.25) !important;
+  background: rgba(61, 214, 245, 0.08) !important;
+}
+
+[data-baseweb="notification"] {
+  border-radius: var(--jw-radius-sm);
+}
+
+div[data-testid="stSuccess"] {
+  border-radius: var(--jw-radius-sm);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+div[data-testid="stError"] {
+  border-radius: var(--jw-radius-sm);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* Metrics / expanders later */
+[data-testid="stMetricValue"] {
+  font-family: var(--jw-font-mono);
+}
+
+/* Sign-in form as gateway .panel (S2.1); brand block is markdown inside the form */
+section.main [data-testid="stForm"] {
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-right: auto;
+  background: linear-gradient(165deg, var(--jw-surface) 0%, var(--jw-surface-2) 100%);
+  border: 1px solid var(--jw-border);
+  border-radius: var(--jw-radius);
+  box-shadow: var(--jw-shadow);
+  padding: calc(var(--jw-step) * 8) calc(var(--jw-step) * 7);
+}
+
+section.main [data-testid="stForm"] label,
+section.main [data-testid="stForm"] [data-testid="stWidgetLabel"] p {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--jw-text-muted) !important;
+}
+
+section.main [data-testid="stForm"] input,
+section.main [data-testid="stForm"] [data-baseweb="input"] input {
+  font-family: var(--jw-font-mono) !important;
+  font-size: 0.9375rem !important;
+  color: var(--jw-text) !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid var(--jw-border) !important;
+  border-radius: var(--jw-radius-sm) !important;
+}
+
+section.main [data-testid="stForm"] input:focus,
+section.main [data-testid="stForm"] [data-baseweb="input"] input:focus {
+  border-color: var(--jw-accent) !important;
+  box-shadow: 0 0 0 3px var(--jw-accent-dim) !important;
+}
+
+/* Footer under login card (outside form) */
+.jw-login-foot-wrap {
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0;
+}
+
+.jw-dashboard-center {
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stButton > button {
+    transition: none !important;
+  }
+}

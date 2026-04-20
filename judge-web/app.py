@@ -10,7 +10,17 @@ from datetime import datetime, timezone
 import streamlit as st
 
 import config
-from services.gateway_client import GatewayError, GatewayTransportError, get_client
+from components.styles import inject_theme
+from pages_ui import render_login_form
+from pages_ui.dashboard_shell import render_dashboard_placeholder
+from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
+from session_guard import (
+    clear_judge_auth,
+    ensure_logged_out_client_if_no_mirror,
+    is_judge_authenticated,
+    logout_completely,
+    probe_judge_session,
+)
 
 try:
     _settings = {
@@ -28,6 +38,8 @@ st.set_page_config(
     page_icon="⚖️",
     layout="centered",
 )
+
+inject_theme()
 
 if "gateway_ping" not in st.session_state:
     st.session_state.gateway_ping = None
@@ -49,7 +61,7 @@ with st.sidebar:
         t0 = time.perf_counter()
         checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         try:
-            body = get_client().get_health()
+            body = get_gateway_client().get_health()
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             status = str(body.get("status", "ok"))
             st.session_state.gateway_ping = {
@@ -93,8 +105,43 @@ with st.sidebar:
         err = ping.get("error") or "Unknown error"
         st.caption(err[:500] + ("…" if len(err) > 500 else ""))
 
-st.title("Data Presentation Dashboard")
-st.caption("Judge / Auditor — Phase 1 (S1.4: Ping Gateway)")
-st.info(
-    "Placeholder page. Phase 1 complete. Next: Phase 2 — login (S2.1 onward)."
-)
+    if is_judge_authenticated():
+        st.divider()
+        st.subheader("Session")
+        st.caption("End your gateway session and return to the sign-in screen.")
+        if st.button("Logout", key="jw_logout_btn", use_container_width=True):
+            logout_completely()
+            st.rerun()
+
+_auth_flash = st.session_state.pop("_auth_flash", None)
+
+if is_judge_authenticated():
+    _probe = probe_judge_session()
+    if _probe == "unauthorized":
+        clear_judge_auth()
+        st.session_state["_auth_flash"] = (
+            "Your session expired or was revoked. Please sign in again."
+        )
+        st.rerun()
+    elif _probe == "transport":
+        if _auth_flash:
+            st.warning(_auth_flash)
+        st.warning(
+            "Cannot reach the API gateway to verify your session. "
+            "You can keep working, but requests may fail until connectivity returns."
+        )
+        render_dashboard_placeholder()
+    elif _probe == "error":
+        if _auth_flash:
+            st.warning(_auth_flash)
+        st.warning("The gateway could not verify your session. Try again shortly.")
+        render_dashboard_placeholder()
+    else:
+        if _auth_flash:
+            st.warning(_auth_flash)
+        render_dashboard_placeholder()
+else:
+    ensure_logged_out_client_if_no_mirror()
+    if _auth_flash:
+        st.warning(_auth_flash)
+    render_login_form()

@@ -7,6 +7,13 @@
     "passwordPlain": "1"
   },
   {
+    "userId": "u-police-plan",
+    "username": "police1",
+    "email": "police1@example.com",
+    "role": "police",
+    "passwordPlain": "1"
+  },
+  {
     "userId": "u-police-2",
     "username": "officer2",
     "email": "police2@example.com",

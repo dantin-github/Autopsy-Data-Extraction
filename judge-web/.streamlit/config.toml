@@ -1,0 +1,15 @@
+# Match api-gateway login.html tokens (dark + cyan accent).
+[theme]
+base = "dark"
+primaryColor = "#3dd6f5"
+backgroundColor = "#0a0e14"
+secondaryBackgroundColor = "#111820"
+textColor = "#e8edf4"
+
+[browser]
+gatherUsageStats = false
+
+# Skip the interactive "Email:" prompt in the terminal (breaks in Cursor / non-TTY).
+# Requires running Streamlit with CWD = judge-web so this file is picked up.
+[server]
+showEmailPrompt = false

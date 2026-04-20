@@ -167,8 +167,32 @@ class GatewayClient:
         return self._request_json("GET", "/api/audit", params=params)
 
 
+def cookies_as_dict(client: GatewayClient) -> dict[str, str]:
+    """Snapshot ``requests`` cookie jar as a plain dict (e.g. for ``st.session_state``)."""
+    return {c.name: c.value for c in client.session.cookies}
+
+
 def get_client() -> GatewayClient:
-    """Build a client using API_GATEWAY_URL from config (judge-web/.env)."""
+    """Build a fresh client (CLI/tests). Does not share Streamlit session cookies."""
     import config
 
     return GatewayClient(config.get_api_gateway_url(), timeout=DEFAULT_TIMEOUT_S)
+
+
+def get_gateway_client() -> GatewayClient:
+    """
+    Shared client for the current Streamlit browser session.
+
+    The same ``requests.Session`` (and cookie jar) is reused across reruns so
+    ``gw.sid`` from ``POST /login`` is kept for ``/api/*`` calls.
+    """
+    import streamlit as st
+
+    import config
+
+    key = "gateway_client"
+    if key not in st.session_state:
+        st.session_state[key] = GatewayClient(
+            config.get_api_gateway_url(), timeout=DEFAULT_TIMEOUT_S
+        )
+    return st.session_state[key]
