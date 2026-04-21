@@ -1,4 +1,4 @@
-"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1)."""
+"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1 / S5.2)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,10 @@ import pandas as pd
 import streamlit as st
 
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
+
+_LIMIT_OPTIONS = [10, 50, 100, 500]
+_AUDIT_APPLIED_LIMIT = "_audit_applied_limit"
+_AUDIT_APPLIED_SINCE_ISO = "_audit_applied_since_iso"
 
 
 def _dash(v: Any) -> str:
@@ -35,6 +39,23 @@ def _split_iso_ts(ts_raw: str) -> tuple[str, str]:
         return date_part, time_part
     except ValueError:
         return s, "—"
+
+
+def _local_naive_to_utc_iso_z(dt: datetime) -> str:
+    """Interpret naive *dt* as local wall time; return UTC ISO 8601 ending in Z."""
+    local_tz = datetime.now(timezone.utc).astimezone().tzinfo
+    if local_tz is None:
+        aware = dt.replace(tzinfo=timezone.utc)
+    else:
+        aware = dt.replace(tzinfo=local_tz)
+    utc = aware.astimezone(timezone.utc)
+    return utc.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _utc_iso_z_to_naive_local(iso_z: str) -> datetime:
+    s = iso_z.strip().replace("Z", "+00:00")
+    aware_utc = datetime.fromisoformat(s)
+    return aware_utc.astimezone().replace(tzinfo=None)
 
 
 def _flatten_audit_item(item: Mapping[str, Any]) -> dict[str, Any]:
@@ -102,12 +123,69 @@ def render_audit_trail_tab() -> None:
         "Auditor view: recent CaseRegistry events from the gateway audit log. "
         "Rows are sorted by event time (newest first), then block height. "
         "If you reset the chain or switch networks, archive or clear `data/audit.jsonl` "
-        "so block heights stay consistent with the current ledger. "
-        "Default limit is 50 rows."
+        "so block heights stay consistent with the current ledger."
     )
 
+    if _AUDIT_APPLIED_LIMIT not in st.session_state:
+        st.session_state[_AUDIT_APPLIED_LIMIT] = 50
+        st.session_state[_AUDIT_APPLIED_SINCE_ISO] = None
+
+    applied_lim = int(st.session_state[_AUDIT_APPLIED_LIMIT])
+    applied_since = st.session_state[_AUDIT_APPLIED_SINCE_ISO]
+    lim_index = (
+        _LIMIT_OPTIONS.index(applied_lim) if applied_lim in _LIMIT_OPTIONS else 1
+    )
+
+    if applied_since:
+        default_local = _utc_iso_z_to_naive_local(str(applied_since))
+    else:
+        default_local = datetime.now().replace(second=0, microsecond=0)
+
+    with st.form("audit_trail_filters", clear_on_submit=False):
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            limit = st.selectbox(
+                "Row limit",
+                options=_LIMIT_OPTIONS,
+                index=lim_index,
+                help="Maximum rows returned after filtering (gateway cap 500).",
+            )
+        with c2:
+            use_since = st.checkbox(
+                "Only events on or after (local time)",
+                value=applied_since is not None,
+                help="When enabled, start time is converted to UTC ISO 8601 for the API.",
+            )
+            since_local = st.datetime_input(
+                "Start time",
+                value=default_local,
+                disabled=not use_since,
+            )
+        submitted = st.form_submit_button("Apply filters")
+
+    if submitted:
+        st.session_state[_AUDIT_APPLIED_LIMIT] = int(limit)
+        if use_since:
+            st.session_state[_AUDIT_APPLIED_SINCE_ISO] = _local_naive_to_utc_iso_z(
+                since_local
+            )
+        else:
+            st.session_state[_AUDIT_APPLIED_SINCE_ISO] = None
+
+    lim = int(st.session_state[_AUDIT_APPLIED_LIMIT])
+    since_param = st.session_state[_AUDIT_APPLIED_SINCE_ISO]
+    cap = f"Active filters: **{lim}** rows"
+    if since_param:
+        cap += f" · since **{since_param}** (UTC)"
+    else:
+        cap += " · no start-time filter"
+    st.caption(cap)
+
     try:
-        data = get_gateway_client().get_audit(limit=50)
+        data = get_gateway_client().get_audit(
+            limit=lim,
+            since=str(since_param).strip() if since_param else None,
+        )
     except GatewayTransportError as e:
         st.error(str(e))
         return
@@ -125,8 +203,9 @@ def render_audit_trail_tab() -> None:
 
     if len(items) == 0:
         st.info(
-            "No audit rows returned. After a full propose → approve → execute flow with the "
-            "gateway event listener enabled, expect at least three rows here."
+            "No audit rows returned for these filters. "
+            "Widen the time window, raise the row limit, or run a propose → approve → "
+            "execute flow with the gateway event listener enabled."
         )
         return
 
