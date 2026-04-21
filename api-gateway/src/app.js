@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const express = require('express');
 const session = require('express-session');
 const config = require('./config');
+const chain = require('./services/chain');
 const authRouter = require('./routes/auth');
 const uploadRouter = require('./routes/upload');
 const queryRouter = require('./routes/query');
@@ -36,7 +37,23 @@ function createApp() {
   );
 
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    const reg = String(config.caseRegistryAddr || '').trim();
+    const regOk = /^0x[0-9a-fA-F]{40}$/i.test(reg);
+    const addrTail =
+      regOk && reg.length >= 8
+        ? reg.replace(/^0x/i, '').toLowerCase().slice(-6)
+        : null;
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      gateway: {
+        chainMode: config.chainMode,
+        chainConfigured: chain.isChainConfigured(),
+        caseRegistryConfigured: regOk,
+        caseRegistryAddrTail: addrTail,
+        uploadContractPathEnabled: config.uploadContractEnabled()
+      }
+    });
   });
 
   if (config.enableDebugRoutes) {
