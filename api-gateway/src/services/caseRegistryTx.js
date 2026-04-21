@@ -15,6 +15,7 @@ const config = require('../config');
 const keystore = require('./keystore');
 const chain = require('./chain');
 const userStore = require('./userStore');
+const { parseReceiptBlockNumber } = require('./receiptBlockNumber');
 
 /** Project root `api-gateway/` (this file lives in `src/services/`) */
 const apiRoot = path.join(__dirname, '..', '..');
@@ -421,7 +422,8 @@ async function proposeFromUserKeystore(opts) {
     if (!txHash || typeof txHash !== 'string') {
       throw new Error('propose receipt missing transactionHash');
     }
-    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const blockNumber =
+      receipt.blockNumber != null ? parseReceiptBlockNumber(receipt.blockNumber) : 0;
     const proposalCreated = parseProposalCreatedFromReceipt(receipt);
     return { txHash, blockNumber, proposalCreated };
   } finally {
@@ -540,7 +542,8 @@ async function approveFromUserKeystore(opts) {
     if (!txHash || typeof txHash !== 'string') {
       throw new Error('approve receipt missing transactionHash');
     }
-    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const blockNumber =
+      receipt.blockNumber != null ? parseReceiptBlockNumber(receipt.blockNumber) : 0;
     const proposalApproved = parseProposalApprovedFromReceipt(receipt);
     return { txHash, blockNumber, proposalApproved };
   } finally {
@@ -665,7 +668,8 @@ async function rejectFromUserKeystore(opts) {
     if (!txHash || typeof txHash !== 'string') {
       throw new Error('reject receipt missing transactionHash');
     }
-    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const blockNumber =
+      receipt.blockNumber != null ? parseReceiptBlockNumber(receipt.blockNumber) : 0;
     const proposalRejected = parseProposalRejectedFromReceipt(receipt);
     return { txHash, blockNumber, proposalRejected };
   } finally {
@@ -785,7 +789,8 @@ async function executeFromUserKeystore(opts) {
     if (!txHash || typeof txHash !== 'string') {
       throw new Error('execute receipt missing transactionHash');
     }
-    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const blockNumber =
+      receipt.blockNumber != null ? parseReceiptBlockNumber(receipt.blockNumber) : 0;
     const proposalExecuted = parseProposalExecutedFromReceipt(receipt);
     return { txHash, blockNumber, proposalExecuted };
   } finally {
@@ -916,7 +921,8 @@ async function createRecordFromUserKeystore(opts) {
     if (!txHash || typeof txHash !== 'string') {
       throw new Error('createRecord receipt missing transactionHash');
     }
-    const blockNumber = receipt.blockNumber != null ? parseInt(String(receipt.blockNumber), 16) : 0;
+    const blockNumber =
+      receipt.blockNumber != null ? parseReceiptBlockNumber(receipt.blockNumber) : 0;
     return { txHash, blockNumber };
   } finally {
     try {

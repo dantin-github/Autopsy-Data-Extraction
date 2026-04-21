@@ -10,6 +10,7 @@ const ethers = require('ethers');
 const config = require('../config');
 const chain = require('./chain');
 const { logger } = require('../logger');
+const { parseReceiptBlockNumber } = require('./receiptBlockNumber');
 
 const apiRoot = path.join(__dirname, '..', '..');
 const abiPath = path.join(apiRoot, 'build', 'CaseRegistry.abi');
@@ -127,7 +128,7 @@ async function processBlock(web3j, iface, contractAddrLower, blockNum) {
     if (to !== contractAddrLower) {
       continue;
     }
-    const blockNumber = parseInt(String(receipt.blockNumber), 16);
+    const blockNumber = parseReceiptBlockNumber(receipt.blockNumber);
     for (const log of receipt.logs) {
       try {
         const ev = iface.parseLog(log);

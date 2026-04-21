@@ -10,6 +10,7 @@ const { Configuration, Web3jService, CRUDService, Table, Entry, Condition } = re
 const { handleReceipt } = require('fisco-bcos/lib/precompiled/common');
 const crudConstant = require('fisco-bcos/lib/precompiled/crud/constant');
 const config = require('../config');
+const { parseReceiptBlockNumber } = require('./receiptBlockNumber');
 
 let _cachedConfiguration = null;
 let _web3jService = null;
@@ -144,7 +145,7 @@ async function insertRecord(row) {
 
   const decoded = handleReceipt(receipt, crudConstant.CRUD_PRECOMPILE_ABI.insert);
   const affected = parseInt(String(decoded[0]), 10);
-  const blockNumber = parseInt(receipt.blockNumber, 16);
+  const blockNumber = parseReceiptBlockNumber(receipt.blockNumber);
 
   return { txHash, affected, blockNumber };
 }
@@ -192,7 +193,7 @@ async function updateRecord(row) {
 
   const decoded = handleReceipt(receipt, crudConstant.CRUD_PRECOMPILE_ABI.update);
   const affected = parseInt(String(decoded[0]), 10);
-  const blockNumber = parseInt(receipt.blockNumber, 16);
+  const blockNumber = parseReceiptBlockNumber(receipt.blockNumber);
 
   return { txHash, affected, blockNumber };
 }

@@ -62,6 +62,13 @@ function readAuditLines(opts) {
   }
 
   filtered.sort((a, b) => {
+    const da = new Date(String(a.ts || ''));
+    const db = new Date(String(b.ts || ''));
+    const ma = da.getTime();
+    const mb = db.getTime();
+    if (!Number.isNaN(ma) && !Number.isNaN(mb) && ma !== mb) {
+      return mb - ma;
+    }
     const bn = (Number(b.blockNumber) || 0) - (Number(a.blockNumber) || 0);
     if (bn !== 0) {
       return bn;

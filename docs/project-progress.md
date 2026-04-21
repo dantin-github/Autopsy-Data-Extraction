@@ -59,4 +59,12 @@
 
 ---
 
+## 2026-04：Audit `blockNumber` 与排序
+
+- **现象**：`audit.jsonl` 顶行出现 ~10 万级 `blockNumber`，而当前链仅 ~800；时间却比下方行更旧。  
+- **原因**：(1) 列表原按 `blockNumber` 排序，**换链/重置**后旧环境写入的高块号会压在最前；(2) 部分 SDK 路径下 `receipt.blockNumber` 为**十进制**，`parseInt(x, 16)` 会误解析。  
+- **处理**：`parseReceiptBlockNumber` 统一解析；`readAuditLines` **优先按 `ts` 降序**；UI 提示可归档/清空审计文件。
+
+---
+
 *Last updated: 2026-04-21*

@@ -47,7 +47,10 @@ def _flatten_audit_item(item: Mapping[str, Any]) -> dict[str, Any]:
 def render_audit_trail_tab() -> None:
     st.subheader("Audit Trail")
     st.caption(
-        "Auditor view: recent CaseRegistry events from the gateway audit log (newest first). "
+        "Auditor view: recent CaseRegistry events from the gateway audit log. "
+        "Rows are sorted by event time (newest first), then block height. "
+        "If you reset the chain or switch networks, archive or clear `data/audit.jsonl` "
+        "so block heights stay consistent with the current ledger. "
         "Default limit is 50 rows."
     )
 
