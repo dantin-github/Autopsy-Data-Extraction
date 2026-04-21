@@ -16,6 +16,7 @@ from pages_ui.audit_trail_tab import render_audit_trail_tab
 from pages_ui.judicial_review_tab import render_judicial_review_tab
 from pages_ui.query_tab import render_query_tab
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
+from browser_session import try_restore_judge_from_browser_cookies
 from session_guard import (
     clear_judge_auth,
     ensure_logged_out_client_if_no_mirror,
@@ -131,6 +132,7 @@ with st.sidebar:
 
 _auth_flash = st.session_state.pop("_auth_flash", None)
 
+try_restore_judge_from_browser_cookies()
 sync_judge_cookie_mirror()
 
 if is_judge_authenticated():

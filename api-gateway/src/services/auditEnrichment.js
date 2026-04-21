@@ -108,8 +108,7 @@ function buildAddressToDisplayMap() {
       u.username != null && String(u.username).trim() !== ''
         ? String(u.username).trim()
         : String(u.userId || '').trim() || 'user';
-    const role = u.role != null && String(u.role).trim() !== '' ? String(u.role).trim().toLowerCase() : '';
-    const label = role ? `${uname} (${role})` : uname;
+    const label = uname;
 
     const addrKeys = [];
     const primary = u && u.onchainAddress != null ? String(u.onchainAddress).trim() : '';

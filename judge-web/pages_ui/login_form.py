@@ -15,6 +15,7 @@ from __future__ import annotations
 import streamlit as st
 
 from components.styles import login_brand_html
+from browser_session import persist_judge_browser_session
 from session_guard import clear_judge_auth
 from services.gateway_client import (
     GatewayError,
@@ -104,6 +105,10 @@ def render_login_form() -> None:
                             )
                             clear_judge_auth()
                         else:
+                            persist_judge_browser_session(
+                                st.session_state["gw_cookies"]["gw.sid"],
+                                st.session_state["user"],
+                            )
                             st.rerun()
                     elif status == "redirect":
                         # Unexpected role with redirect shape — treat as non-judge.

@@ -54,6 +54,12 @@ def is_judge_authenticated() -> bool:
 
 def clear_judge_auth() -> None:
     """Drop mirrored auth state and the shared requests cookie jar."""
+    try:
+        from browser_session import clear_persisted_judge_browser_session
+
+        clear_persisted_judge_browser_session()
+    except Exception:
+        pass
     st.session_state.pop("user", None)
     st.session_state.pop("gw_cookies", None)
     st.session_state.pop("_judge_probe_at", None)
@@ -66,6 +72,12 @@ def logout_completely() -> None:
 
     The next run creates a fresh ``GatewayClient`` with an empty jar.
     """
+    try:
+        from browser_session import clear_persisted_judge_browser_session
+
+        clear_persisted_judge_browser_session()
+    except Exception:
+        pass
     get_gateway_client().session.cookies.clear()
     st.session_state.clear()
 
