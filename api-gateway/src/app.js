@@ -27,6 +27,7 @@ function createApp() {
       secret: config.sessionSecret,
       resave: false,
       saveUninitialized: false,
+      rolling: true,
       cookie: {
         httpOnly: true,
         maxAge: config.sessionCookieMaxAgeMs,

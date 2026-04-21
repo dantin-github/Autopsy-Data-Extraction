@@ -13,10 +13,33 @@ from services.gateway_client import (
     GatewayClient,
     GatewayError,
     GatewayTransportError,
+    cookies_as_dict,
     get_gateway_client,
 )
 
 ProbeResult = Literal["ok", "unauthorized", "error", "transport"]
+
+
+def _session_jar_has_sid() -> bool:
+    """True if the shared ``requests`` jar still holds ``gw.sid`` (authoritative for API calls)."""
+    v = get_gateway_client().session.cookies.get("gw.sid")
+    return v is not None and str(v).strip() != ""
+
+
+def sync_judge_cookie_mirror() -> None:
+    """
+    Copy ``gw.sid`` from the HTTP jar into ``st.session_state[\"gw_cookies\"]``.
+
+    Streamlit reruns sometimes drop or omit the mirrored dict while the jar still
+    has a valid cookie; without this, ``ensure_logged_out_client_if_no_mirror`` could
+    clear the jar and force re-login even though the gateway session was fine.
+    """
+    user = st.session_state.get("user")
+    if not isinstance(user, dict) or str(user.get("role") or "").lower() != "judge":
+        return
+    if not _session_jar_has_sid():
+        return
+    st.session_state["gw_cookies"] = cookies_as_dict(get_gateway_client())
 
 
 def is_judge_authenticated() -> bool:
@@ -26,7 +49,7 @@ def is_judge_authenticated() -> bool:
         return False
     if str(user.get("role") or "").lower() != "judge":
         return False
-    return bool(cookies.get("gw.sid"))
+    return bool(cookies.get("gw.sid")) or _session_jar_has_sid()
 
 
 def clear_judge_auth() -> None:
@@ -66,6 +89,12 @@ def probe_judge_session(client: GatewayClient | None = None) -> ProbeResult:
 def ensure_logged_out_client_if_no_mirror() -> None:
     """If UI state says logged out but the jar still holds gw.sid, clear the jar."""
     if is_judge_authenticated():
+        return
+    user = st.session_state.get("user")
+    if isinstance(user, dict) and str(user.get("role") or "").lower() == "judge":
+        # Stale judge labels with no cookie — reset UI state only; jar is already empty.
+        if not _session_jar_has_sid():
+            clear_judge_auth()
         return
     jar = get_gateway_client().session.cookies
     if jar.get("gw.sid"):

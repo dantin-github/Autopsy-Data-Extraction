@@ -22,6 +22,7 @@ from session_guard import (
     is_judge_authenticated,
     logout_completely,
     probe_judge_session,
+    sync_judge_cookie_mirror,
 )
 
 
@@ -129,6 +130,8 @@ with st.sidebar:
             st.rerun()
 
 _auth_flash = st.session_state.pop("_auth_flash", None)
+
+sync_judge_cookie_mirror()
 
 if is_judge_authenticated():
     _probe = probe_judge_session()
