@@ -55,6 +55,13 @@ const otpTtlMsRaw = Number(process.env.OTP_TTL_MS);
 const otpTtlMs =
   Number.isFinite(otpTtlMsRaw) && otpTtlMsRaw > 0 ? otpTtlMsRaw : 2 * 60 * 60 * 1000;
 
+/** Browser session cookie (`gw.sid`) lifetime for judge and police after login. Default 2h. */
+const sessionCookieMaxAgeMsRaw = Number(process.env.SESSION_MAX_AGE_MS);
+const sessionCookieMaxAgeMs =
+  Number.isFinite(sessionCookieMaxAgeMsRaw) && sessionCookieMaxAgeMsRaw > 0
+    ? sessionCookieMaxAgeMsRaw
+    : 2 * 60 * 60 * 1000;
+
 function resolveRecordStorePath() {
   const raw = process.env.RECORD_STORE_PATH;
   if (raw != null && String(raw).trim() !== '') {
@@ -149,6 +156,7 @@ module.exports = {
   enableDebugRoutes,
   port,
   sessionSecret,
+  sessionCookieMaxAgeMs,
   usersFilePath,
   judgeDashboardUrl,
   mailDryRun,

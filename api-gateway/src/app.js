@@ -29,7 +29,7 @@ function createApp() {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        maxAge: 30 * 60 * 1000,
+        maxAge: config.sessionCookieMaxAgeMs,
         sameSite: 'lax'
       }
     })
