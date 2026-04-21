@@ -16,7 +16,13 @@ from pages_ui.audit_trail_tab import render_audit_trail_tab
 from pages_ui.judicial_review_tab import render_judicial_review_tab
 from pages_ui.query_tab import render_query_tab
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
-from browser_session import try_restore_judge_from_browser_cookies
+from workspace_state import (
+    WORKSPACE_AUDIT,
+    WORKSPACE_LABELS,
+    WORKSPACE_QUERY,
+    WORKSPACE_REVIEW,
+    WORKSPACE_TAB_INDEX_KEY,
+)
 from session_guard import (
     clear_judge_auth,
     ensure_logged_out_client_if_no_mirror,
@@ -28,15 +34,27 @@ from session_guard import (
 
 
 def _render_judge_workspace() -> None:
-    """Main area after login: full-width Query / Judicial Review / Audit Trail tabs (S3.1)."""
-    tab_query, tab_review, tab_audit = st.tabs(
-        ["Query", "Judicial Review", "Audit Trail"],
+    """Main workspace: radio navigation so Audit can switch to Judicial Review (S5.3)."""
+    if WORKSPACE_TAB_INDEX_KEY not in st.session_state:
+        st.session_state[WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_QUERY
+    cur = int(st.session_state[WORKSPACE_TAB_INDEX_KEY])
+    if cur not in (WORKSPACE_QUERY, WORKSPACE_REVIEW, WORKSPACE_AUDIT):
+        st.session_state[WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_QUERY
+
+    st.radio(
+        "Workspace",
+        options=[WORKSPACE_QUERY, WORKSPACE_REVIEW, WORKSPACE_AUDIT],
+        format_func=lambda i: WORKSPACE_LABELS[i],
+        horizontal=True,
+        key=WORKSPACE_TAB_INDEX_KEY,
+        label_visibility="collapsed",
     )
-    with tab_query:
+    active = int(st.session_state[WORKSPACE_TAB_INDEX_KEY])
+    if active == WORKSPACE_QUERY:
         render_query_tab()
-    with tab_review:
+    elif active == WORKSPACE_REVIEW:
         render_judicial_review_tab()
-    with tab_audit:
+    else:
         render_audit_trail_tab()
 
 try:
@@ -60,10 +78,6 @@ inject_theme()
 
 if "gateway_ping" not in st.session_state:
     st.session_state.gateway_ping = None
-
-# Restore gateway cookie + mirror before any UI reads auth (sidebar, probe).
-try_restore_judge_from_browser_cookies()
-sync_judge_cookie_mirror()
 
 with st.sidebar:
     st.header("Configuration")
@@ -135,6 +149,8 @@ with st.sidebar:
             st.rerun()
 
 _auth_flash = st.session_state.pop("_auth_flash", None)
+
+sync_judge_cookie_mirror()
 
 if is_judge_authenticated():
     _probe = probe_judge_session()

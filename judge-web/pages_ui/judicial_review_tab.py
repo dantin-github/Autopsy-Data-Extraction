@@ -11,6 +11,7 @@ from typing import Any, List, Mapping, Sequence, Tuple
 import streamlit as st
 
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
+from workspace_state import PENDING_PROPOSAL_ID_KEY
 
 _MODIFY_FETCH_RESULT_KEY = "judicial_modify_fetch_result"
 _PENDING_WRAP_KEY = "judicial_pending_for_case_wrap"
@@ -287,6 +288,25 @@ def _render_pending_decision_block(
 
 def render_judicial_review_tab() -> None:
     st.subheader("Judicial Review")
+    _pid_from_audit = st.session_state.pop(PENDING_PROPOSAL_ID_KEY, None)
+    if _pid_from_audit is not None:
+        p = str(_pid_from_audit).strip()
+        if p and p != "—":
+            try:
+                with st.spinner("Loading proposal from audit trail…"):
+                    data = get_gateway_client().get_modify(p)
+            except GatewayTransportError as e:
+                _clear_modify_fetch_result()
+                _clear_pending_wrap()
+                st.error(str(e))
+            except GatewayError as e:
+                _clear_modify_fetch_result()
+                _clear_pending_wrap()
+                _render_modify_fetch_error(e)
+            else:
+                _clear_pending_wrap()
+                st.session_state[_MODIFY_FETCH_RESULT_KEY] = data
+                st.session_state["judicial_proposal_id_input"] = p
     fb = st.session_state.pop(_JUDICIAL_DECISION_FEEDBACK_KEY, None)
     if fb:
         st.success(fb)

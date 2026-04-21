@@ -13,3 +13,5 @@ gatherUsageStats = false
 # Requires running Streamlit with CWD = judge-web so this file is picked up.
 [server]
 showEmailPrompt = false
+# Do not launch a browser tab on `streamlit run` (open the URL manually if needed).
+headless = true
