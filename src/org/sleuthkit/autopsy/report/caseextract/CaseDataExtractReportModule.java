@@ -4,8 +4,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -240,12 +238,13 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
         }
         report.append("\n  ],\n");
 
-        // 5. Aggregate hash: SHA-256 of the report body (with hash fields empty), then append the hash
+        // 5. Aggregate hash: same algorithm as api-gateway integrity.js (canonical JSON + SHA-256)
         String body = report.toString();
         String forHash = body + "  \"aggregateHash\": \"\",\n  \"aggregateHashNote\": \"\"\n}\n";
-        String aggregateHash = sha256Hex(forHash.getBytes(StandardCharsets.UTF_8));
+        String aggregateHash = CanonicalJson.computeAggregateHash(forHash);
         report.append("  \"aggregateHash\": \"").append(aggregateHash).append("\",\n");
-        report.append("  \"aggregateHashNote\": \"SHA-256 of this JSON with aggregateHash and aggregateHashNote empty (UTF-8)\"\n");
+        report.append("  \"aggregateHashNote\": \"SHA-256 of JSON with aggregateHash and aggregateHashNote cleared, ")
+                .append("keys sorted lexicographically at every object depth, compact UTF-8 serialization (matches api-gateway integrity.js)\"\n");
         report.append("}\n");
 
         try {
@@ -298,17 +297,4 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 
-    private static String sha256Hex(byte[] data) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(data);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(String.format(Locale.ROOT, "%02x", b & 0xff));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            return "";
-        }
-    }
 }

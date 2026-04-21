@@ -6,7 +6,9 @@
     <property file="build.properties"/>
     <property name="autopsy.platform" value="C:\Program Files\Autopsy-4.22.1\platform"/>
     <property name="src.dir" value="src"/>
+    <property name="test.src.dir" value="test"/>
     <property name="build.dir" value="build"/>
+    <property name="build.test.classes" value="${build.dir}/test-classes"/>
     <property name="dist.dir" value="dist"/>
     <property name="dist.jar" value="${dist.dir}/CaseDataExtract.jar"/>
     <property name="nbm.jar" value="${dist.dir}/org-sleuthkit-autopsy-report-caseextract.jar"/>
@@ -36,6 +38,33 @@
         <copy todir="${build.dir}/classes" failonerror="false">
             <fileset dir="${src.dir}" excludes="**/*.java"/>
         </copy>
+    </target>
+
+    <target name="compile-canonical-only" description="Compile only CanonicalJson.java (no Autopsy classpath)">
+        <mkdir dir="${build.dir}/classes"/>
+        <javac srcdir="${src.dir}" destdir="${build.dir}/classes" source="17" target="17"
+               includeantruntime="false" encoding="UTF-8">
+            <compilerarg value="-proc:none"/>
+            <include name="org/sleuthkit/autopsy/report/caseextract/CanonicalJson.java"/>
+        </javac>
+    </target>
+
+    <target name="compile-test" depends="compile-canonical-only" description="Compile CanonicalJson cross-tests">
+        <mkdir dir="${build.test.classes}"/>
+        <javac srcdir="${test.src.dir}" destdir="${build.test.classes}" source="17" target="17"
+               includeantruntime="false" encoding="UTF-8">
+            <compilerarg value="-proc:none"/>
+            <classpath path="${build.dir}/classes"/>
+        </javac>
+    </target>
+
+    <target name="test-canonical" depends="compile-test" description="Run CanonicalJsonTest vs api-gateway fixtures">
+        <java classname="org.sleuthkit.autopsy.report.caseextract.CanonicalJsonTest" fork="true" failonerror="true">
+            <classpath>
+                <pathelement path="${build.dir}/classes"/>
+                <pathelement path="${build.test.classes}"/>
+            </classpath>
+        </java>
     </target>
 
     <target name="-do-jar" depends="compile">
