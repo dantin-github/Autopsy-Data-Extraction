@@ -93,6 +93,20 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
       recordHash: recordHashRaw
     });
 
+    try {
+      recordStore.mergeFields(caseId, {
+        crud_tx_hash: txHash,
+        crud_block_number: blockNumber
+      });
+    } catch (e) {
+      try {
+        recordStore.remove(caseId);
+      } catch (_) {
+        /* best-effort rollback */
+      }
+      return next(e);
+    }
+
     let caseRegistryTxHash;
     let caseRegistryBlockNumber;
     if (contractMode) {
@@ -105,6 +119,19 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
         });
         caseRegistryTxHash = reg.txHash;
         caseRegistryBlockNumber = reg.blockNumber;
+        try {
+          recordStore.mergeFields(caseId, {
+            case_registry_tx_hash: caseRegistryTxHash,
+            case_registry_block_number: caseRegistryBlockNumber
+          });
+        } catch (mergeErr) {
+          try {
+            recordStore.remove(caseId);
+          } catch (_) {
+            /* best-effort rollback */
+          }
+          return next(mergeErr);
+        }
       } catch (e) {
         try {
           recordStore.remove(caseId);

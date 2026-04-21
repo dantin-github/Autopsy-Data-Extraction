@@ -153,4 +153,6 @@ test('POST /api/upload 200 returns hashes and mocked tx', async () => {
   assert.ok(got);
   const parsed = JSON.parse(got);
   assert.strictEqual(parsed.case_id, caseId);
+  assert.strictEqual(parsed.crud_tx_hash, `0x${'aa'.repeat(32)}`);
+  assert.strictEqual(parsed.crud_block_number, 42);
 });

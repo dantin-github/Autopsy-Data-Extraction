@@ -71,6 +71,35 @@ function createRecordStore(options = {}) {
     },
 
     /**
+     * Merge fields into an existing stored JSON record (e.g. chain receipt metadata after upload).
+     * Does not alter the canonical record hash fields used by hashOnly.computeRecordHashFromJson.
+     */
+    mergeFields(caseId, patch) {
+      const id = nz(caseId);
+      if (!patch || typeof patch !== 'object') {
+        throw new TypeError('mergeFields(caseId, patch) requires patch object');
+      }
+      const store = loadStore();
+      const raw = store[id];
+      if (raw === undefined || raw === null) {
+        throw new Error(`mergeFields: unknown caseId ${id}`);
+      }
+      let obj;
+      try {
+        obj = JSON.parse(String(raw));
+      } catch {
+        throw new Error(`mergeFields: stored record is not JSON for ${id}`);
+      }
+      for (const [k, v] of Object.entries(patch)) {
+        if (v !== undefined) {
+          obj[k] = v;
+        }
+      }
+      store[id] = JSON.stringify(obj);
+      writeStore(store);
+    },
+
+    /**
      * Two overloads (same as Java CaseRecordStore):
      * - save(caseId, fullRecordJson)
      * - save(caseId, caseJson, aggregateHash, examiner, createdAt)

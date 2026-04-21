@@ -43,3 +43,16 @@ def get_log_level() -> str:
     raw = os.getenv("LOG_LEVEL", "info")
     level = str(raw).strip().lower() if raw else "info"
     return level if level else "info"
+
+
+# Canonical demo case for Query tab / smoke tests (user workspace fixture).
+_DEFAULT_SMOKE_CASE_ID = "e2e-1776665697937"
+
+
+def get_smoke_case_id() -> str:
+    """Case ID used in docs, placeholders, and automated smoke tests (env: ``SMOKE_CASE_ID``)."""
+    _reload_env()
+    raw = os.getenv("SMOKE_CASE_ID")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip()
+    return _DEFAULT_SMOKE_CASE_ID

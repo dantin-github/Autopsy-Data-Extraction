@@ -12,7 +12,9 @@ import streamlit as st
 import config
 from components.styles import inject_theme
 from pages_ui import render_login_form
-from pages_ui.dashboard_shell import render_dashboard_placeholder
+from pages_ui.audit_trail_tab import render_audit_trail_tab
+from pages_ui.judicial_review_tab import render_judicial_review_tab
+from pages_ui.query_tab import render_query_tab
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
 from session_guard import (
     clear_judge_auth,
@@ -22,13 +24,26 @@ from session_guard import (
     probe_judge_session,
 )
 
+
+def _render_judge_workspace() -> None:
+    """Main area after login: full-width Query / Judicial Review / Audit Trail tabs (S3.1)."""
+    tab_query, tab_review, tab_audit = st.tabs(
+        ["Query", "Judicial Review", "Audit Trail"],
+    )
+    with tab_query:
+        render_query_tab()
+    with tab_review:
+        render_judicial_review_tab()
+    with tab_audit:
+        render_audit_trail_tab()
+
 try:
     _settings = {
         "api_gateway_url": config.get_api_gateway_url(),
         "log_level": config.get_log_level(),
     }
 except ValueError as e:
-    st.set_page_config(page_title="Judge Dashboard", page_icon="⚖️", layout="centered")
+    st.set_page_config(page_title="Judge Dashboard", page_icon="⚖️", layout="wide")
     st.error("Configuration error")
     st.code(str(e))
     st.stop()
@@ -36,7 +51,7 @@ except ValueError as e:
 st.set_page_config(
     page_title="Judge Dashboard",
     page_icon="⚖️",
-    layout="centered",
+    layout="wide",
 )
 
 inject_theme()
@@ -130,16 +145,16 @@ if is_judge_authenticated():
             "Cannot reach the API gateway to verify your session. "
             "You can keep working, but requests may fail until connectivity returns."
         )
-        render_dashboard_placeholder()
+        _render_judge_workspace()
     elif _probe == "error":
         if _auth_flash:
             st.warning(_auth_flash)
         st.warning("The gateway could not verify your session. Try again shortly.")
-        render_dashboard_placeholder()
+        _render_judge_workspace()
     else:
         if _auth_flash:
             st.warning(_auth_flash)
-        render_dashboard_placeholder()
+        _render_judge_workspace()
 else:
     ensure_logged_out_client_if_no_mirror()
     if _auth_flash:

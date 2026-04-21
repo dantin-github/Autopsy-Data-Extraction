@@ -18,6 +18,8 @@
   --jw-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --jw-font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   --jw-step: 4px;
+  /* Align with Streamlit st.json string token warmth (dark theme) */
+  --jw-json-string: #ffb86a;
 }
 
 /* Full-app backdrop (same layers as login .backdrop, scoped to Streamlit root) */
@@ -49,17 +51,45 @@
 
 [data-testid="stHeader"] {
   background: transparent;
+  /* Compact toolbar row so main tabs sit closer to Deploy / ⋮ */
+  padding: 0.35rem 0.5rem 0.25rem !important;
 }
 
 [data-testid="stToolbar"] {
   background: transparent;
 }
 
-/* Main block: center content like login panel width */
+/* Wide main: kill Streamlit’s centered max-width and side gutters */
+[data-testid="stAppViewContainer"] > section.main > div,
+[data-testid="stAppViewContainer"] section.main .block-container {
+  max-width: none !important;
+}
+
+section.main > div {
+  width: 100% !important;
+}
+
+section.main {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Main block: full width; minimal top pad (tabs sit just under header chrome) */
 .main .block-container {
-  max-width: 720px;
-  padding-top: calc(var(--jw-step) * 6);
-  padding-bottom: calc(var(--jw-step) * 8);
+  max-width: none !important;
+  width: 100% !important;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  padding-top: 0.125rem !important;
+  padding-bottom: calc(var(--jw-step) * 8) !important;
+}
+
+/* Login only: restore breathing room above the card */
+.main .block-container:has([data-testid="stForm"]) {
+  padding-top: 2rem !important;
+  padding-left: clamp(1rem, 4vw, 2.5rem) !important;
+  padding-right: clamp(1rem, 4vw, 2.5rem) !important;
 }
 
 /* Shell panel (login.html .panel) */
@@ -279,6 +309,68 @@ section.main [data-testid="stForm"] [data-baseweb="input"] input:focus {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
+}
+
+/* st.tabs — full width, three equal columns, gateway accent (S3.1) */
+[data-testid="stTabs"] {
+  width: 100% !important;
+  margin-top: 0 !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-list"],
+[data-testid="stTabs"] [role="tablist"] {
+  display: flex !important;
+  width: 100% !important;
+  gap: 0 !important;
+  background: transparent;
+  border-bottom: 1px solid var(--jw-border);
+  padding-bottom: 0;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"],
+[data-testid="stTabs"] button[role="tab"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  justify-content: center !important;
+  text-align: center !important;
+  color: var(--jw-text-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.02em;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+  color: var(--jw-accent);
+  border-bottom-color: var(--jw-accent) !important;
+}
+
+/* Query tab — on-chain hashes same hue as JSON string values */
+.jw-onchain-field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--jw-text-muted);
+  text-transform: uppercase;
+  margin: 0 0 0.2rem;
+}
+
+.jw-onchain-hash-value {
+  font-family: var(--jw-font-mono);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--jw-json-string);
+  word-break: break-all;
+  margin: 0 0 1rem;
+}
+
+.jw-onchain-missing {
+  font-family: var(--jw-font-mono);
+  font-size: 0.875rem;
+  color: var(--jw-text-muted);
+  margin: 0 0 1rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

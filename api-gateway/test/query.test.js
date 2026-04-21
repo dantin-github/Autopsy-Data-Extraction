@@ -176,6 +176,41 @@ test('POST /api/query 200 onChain true when chain has row', async () => {
     String(res.body.integrity.recordHashLocal || '').toLowerCase(),
     `0x${expectedRh}`.toLowerCase()
   );
+  assert.ok(!Object.prototype.hasOwnProperty.call(res.body.chain, 'txHash'));
+
+  chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
+  delete require.cache[require.resolve('../src/app')];
+});
+
+test('POST /api/query chain.txHash from stored crud_tx_hash', async () => {
+  const caseId = `Q-TX-${Date.now()}`;
+  const caseJsonStr = buildVerifiedCaseJson(caseId);
+  const aggFromJson = JSON.parse(caseJsonStr).aggregateHash;
+
+  const { getDefaultRecordStore } = require('../src/services/recordStore');
+  getDefaultRecordStore().save(caseId, caseJsonStr, aggFromJson, 'police', '2026-01-15T12:00:00.000Z');
+  const expectedTx = `0x${'ee'.repeat(32)}`;
+  getDefaultRecordStore().mergeFields(caseId, { crud_tx_hash: expectedTx });
+
+  const full = getDefaultRecordStore().get(caseId);
+  const expectedRh = hashOnly.computeRecordHashFromJson(full);
+  const indexHex = hashOnly.computeIndexHash(caseId);
+
+  const chain = require('../src/services/chain');
+  chain.selectRecordByIndexHash = async () => ({
+    indexHash: `0x${indexHex}`,
+    recordHash: `0x${expectedRh}`,
+    rows: [{ record_hash: `0x${expectedRh}`, index_hash: `0x${indexHex}` }]
+  });
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const agent = await judgeAgent(app);
+
+  const res = await agent.post('/api/query').send({ caseId }).expect(200);
+  assert.strictEqual(String(res.body.chain.txHash || '').toLowerCase(), expectedTx.toLowerCase());
 
   chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
   delete require.cache[require.resolve('../src/app')];

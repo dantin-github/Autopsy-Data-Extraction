@@ -78,24 +78,23 @@ router.post('/api/query', requireJudgeSession, async (req, res, next) => {
     const localRecordHex = toHex0x(recordHashRaw);
     const recordHashMatch = Boolean(chainRh && hexEq(chainRh, localRecordHex));
 
-    let blockNumber;
-    if (Array.isArray(selIdx.rows) && selIdx.rows[0]) {
-      const bn = selIdx.rows[0].block_number ?? selIdx.rows[0].blockNumber;
-      if (bn != null && bn !== '') {
-        const n =
-          typeof bn === 'string' && /^0x/i.test(bn) ? parseInt(bn, 16) : Number(bn);
-        if (Number.isFinite(n)) {
-          blockNumber = n;
-        }
-      }
-    }
-
     const chainOut = {
       indexHash: toHex0x(indexHashRaw),
       recordHash: chainRh
     };
-    if (blockNumber != null) {
-      chainOut.blockNumber = blockNumber;
+    const crudTxRaw =
+      recordObj && recordObj.crud_tx_hash != null
+        ? String(recordObj.crud_tx_hash).trim()
+        : '';
+    if (crudTxRaw !== '') {
+      chainOut.txHash = toHex0x(crudTxRaw.replace(/^0x/i, ''));
+    }
+    const regTxRaw =
+      recordObj && recordObj.case_registry_tx_hash != null
+        ? String(recordObj.case_registry_tx_hash).trim()
+        : '';
+    if (regTxRaw !== '') {
+      chainOut.caseRegistryTxHash = toHex0x(regTxRaw.replace(/^0x/i, ''));
     }
 
     return res.status(200).json({
