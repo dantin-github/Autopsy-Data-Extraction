@@ -338,11 +338,48 @@ async function getBlockNumber() {
   return parseInt(res.result, 16);
 }
 
+function blockNumHex(n) {
+  if (n === 0) {
+    return '0x0';
+  }
+  return `0x${Number(n).toString(16)}`;
+}
+
+/**
+ * Block header `timestamp` (hex seconds since epoch) → ISO-8601 UTC (same interpretation as WeBASE / console).
+ * @param {number} blockNumber decimal height from transaction receipt
+ * @returns {Promise<string>}
+ */
+async function getBlockTimestampUtcIso(blockNumber) {
+  if (!isChainConfigured()) {
+    const detail = getChainConfigGaps().join('\n');
+    const err = new Error(`Chain not configured:\n${detail}`);
+    err.code = 'CHAIN_NOT_CONFIGURED';
+    throw err;
+  }
+  const bn = Number(blockNumber);
+  if (!Number.isFinite(bn) || bn < 0) {
+    throw new Error(`invalid blockNumber: ${blockNumber}`);
+  }
+  const web3j = getWeb3jService();
+  const resp = await web3j.getBlockByNumber(blockNumHex(bn), false);
+  const block = resp && resp.result;
+  if (!block || block.timestamp == null) {
+    throw new Error('getBlockByNumber: missing block or timestamp');
+  }
+  const sec = parseInt(String(block.timestamp), 16);
+  if (!Number.isFinite(sec)) {
+    throw new Error('getBlockByNumber: invalid timestamp');
+  }
+  return new Date(sec * 1000).toISOString();
+}
+
 module.exports = {
   gatewayPemPath,
   isChainConfigured,
   getChainConfigGaps,
   getBlockNumber,
+  getBlockTimestampUtcIso,
   getWeb3jService,
   insertRecord,
   updateRecord,

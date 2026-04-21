@@ -34,6 +34,8 @@ tmp_bak2/
 # Build and install scripts (local machine specific)
 # -------------------------------------------------------
 *.bat
+!build-patch-core.bat
+!install-patch-core.bat
 
 # -------------------------------------------------------
 # Blockchain module (local certs and build output)

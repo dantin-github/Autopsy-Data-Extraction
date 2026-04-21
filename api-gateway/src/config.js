@@ -151,6 +151,11 @@ if (autoSeedRolesEnv != null && String(autoSeedRolesEnv).trim() !== '') {
   autoSeedRoles = nodeEnv !== 'production';
 }
 
+/** When true, POST /api/upload 200 includes requestId, timing, blockTimestampUtc (same as X-Debug-Timing: 1). Default off for production compatibility. */
+const uploadTimingInResponse = ['1', 'true', 'yes'].includes(
+  String(process.env.UPLOAD_TIMING_IN_RESPONSE || '').toLowerCase()
+);
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -178,5 +183,6 @@ module.exports = {
   auditStatePath,
   eventListenerPollMs,
   eventListenerEnabled,
-  autoSeedRoles
+  autoSeedRoles,
+  uploadTimingInResponse
 };

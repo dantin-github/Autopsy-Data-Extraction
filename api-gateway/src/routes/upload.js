@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
 const config = require('../config');
 const integrity = require('../services/integrity');
@@ -26,6 +27,14 @@ function hexEq(a, b) {
     .replace(/^0x/i, '')
     .toLowerCase();
   return na.length > 0 && nb.length > 0 && na === nb;
+}
+
+function uploadTimingEnabled(req) {
+  const raw = req.get('X-Debug-Timing');
+  if (raw === '1' || String(raw).toLowerCase() === 'true') {
+    return true;
+  }
+  return Boolean(config.uploadTimingInResponse);
 }
 
 /**
@@ -81,6 +90,11 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     }
   }
 
+  const timingEnabled = uploadTimingEnabled(req);
+  const requestId = timingEnabled ? crypto.randomUUID() : null;
+  const tStart = timingEnabled ? Date.now() : null;
+
+  const tIntegrity0 = timingEnabled ? Date.now() : null;
   if (!integrity.verify(caseJson)) {
     const err = new Error('aggregate hash verification failed');
     err.status = 400;
@@ -103,11 +117,15 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     return next(e);
   }
 
+  const integrityMs = timingEnabled && tIntegrity0 != null ? Date.now() - tIntegrity0 : 0;
+
   try {
+    const tChain0 = timingEnabled ? Date.now() : null;
     const { txHash, blockNumber } = await chain.insertRecord({
       indexHash: indexHashRaw,
       recordHash: recordHashRaw
     });
+    const chainMs = timingEnabled && tChain0 != null ? Date.now() - tChain0 : 0;
 
     try {
       recordStore.mergeFields(caseId, {
@@ -125,14 +143,19 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
 
     let caseRegistryTxHash;
     let caseRegistryBlockNumber;
+    let caseRegistryMs = 0;
     if (contractMode) {
       try {
+        const tReg0 = timingEnabled ? Date.now() : null;
         const reg = await chain.createCaseRegistryRecordFromKeystore({
           userId: req.policeUserId,
           signingPassword: String(body.signingPassword || ''),
           indexHashHex: indexHashRaw,
           recordHashHex: recordHashRaw
         });
+        if (timingEnabled && tReg0 != null) {
+          caseRegistryMs = Date.now() - tReg0;
+        }
         caseRegistryTxHash = reg.txHash;
         caseRegistryBlockNumber = reg.blockNumber;
         try {
@@ -195,7 +218,20 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
       }
     }
 
-    return res.status(200).json({
+    let blockTimestampUtc = null;
+    if (timingEnabled && blockNumber != null) {
+      try {
+        blockTimestampUtc = await chain.getBlockTimestampUtcIso(blockNumber);
+      } catch (tsErr) {
+        logger.warn(
+          { err: tsErr && tsErr.message, caseId, blockNumber },
+          'upload: block timestamp lookup failed'
+        );
+      }
+    }
+
+    const totalMs = timingEnabled && tStart != null ? Date.now() - tStart : 0;
+    const basePayload = {
       indexHash: toHex0x(indexHashRaw),
       recordHash: toHex0x(recordHashRaw),
       txHash,
@@ -203,7 +239,28 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
       ...(caseRegistryTxHash != null
         ? { caseRegistryTxHash, caseRegistryBlockNumber }
         : {})
-    });
+    };
+
+    if (timingEnabled && requestId) {
+      const timing = {
+        integrityMs,
+        chainMs,
+        totalMs,
+        ...(contractMode ? { caseRegistryMs } : {})
+      };
+      logger.info(
+        { requestId, caseId, timing, blockTimestampUtc },
+        'upload_timing'
+      );
+      return res.status(200).json({
+        ...basePayload,
+        requestId,
+        timing,
+        ...(blockTimestampUtc ? { blockTimestampUtc } : {})
+      });
+    }
+
+    return res.status(200).json(basePayload);
   } catch (e) {
     try {
       recordStore.remove(caseId);

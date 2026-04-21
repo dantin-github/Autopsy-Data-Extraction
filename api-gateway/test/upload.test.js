@@ -33,6 +33,7 @@ function buildVerifiedCaseJson(caseId) {
 
 let tmpRecordStorePath;
 let origInsertRecord;
+let origGetBlockTimestampUtcIso;
 
 before(() => {
   const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'seed-users.js')], {
@@ -61,6 +62,8 @@ before(() => {
     blockNumber: 42,
     affected: 1
   });
+  origGetBlockTimestampUtcIso = chain.getBlockTimestampUtcIso;
+  chain.getBlockTimestampUtcIso = async () => '2026-01-15T12:00:42.000Z';
 
   delete require.cache[require.resolve('../src/app')];
   delete require.cache[require.resolve('../src/routes/upload')];
@@ -69,6 +72,7 @@ before(() => {
 after(() => {
   const chain = require('../src/services/chain');
   chain.insertRecord = origInsertRecord;
+  chain.getBlockTimestampUtcIso = origGetBlockTimestampUtcIso;
   delete process.env.RECORD_STORE_PATH;
   try {
     fs.rmSync(path.dirname(tmpRecordStorePath), { recursive: true, force: true });
@@ -147,6 +151,8 @@ test('POST /api/upload 200 returns hashes and mocked tx', async () => {
   assert.ok(res.body.recordHash && res.body.recordHash.startsWith('0x'));
   assert.strictEqual(res.body.txHash, `0x${'aa'.repeat(32)}`);
   assert.strictEqual(res.body.blockNumber, 42);
+  assert.strictEqual(res.body.requestId, undefined);
+  assert.strictEqual(res.body.timing, undefined);
 
   const rs = require('../src/services/recordStore').getDefaultRecordStore();
   const got = rs.get(caseId);
@@ -155,4 +161,38 @@ test('POST /api/upload 200 returns hashes and mocked tx', async () => {
   assert.strictEqual(parsed.case_id, caseId);
   assert.strictEqual(parsed.crud_tx_hash, `0x${'aa'.repeat(32)}`);
   assert.strictEqual(parsed.crud_block_number, 42);
+});
+
+test('POST /api/upload with X-Debug-Timing: 1 returns requestId, timing, blockTimestampUtc', async () => {
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+  tokenStore.issue('u-police-1', 'cafebabecafebabecafebabecafebabe', 60_000);
+
+  const caseId = `UPLOAD-TIME-${Date.now()}`;
+  const caseJsonStr = buildVerifiedCaseJson(caseId);
+  const aggFromJson = JSON.parse(caseJsonStr).aggregateHash;
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+
+  const res = await request(app)
+    .post('/api/upload')
+    .set('X-Auth-Token', 'cafebabecafebabecafebabecafebabe')
+    .set('X-Debug-Timing', '1')
+    .send({
+      caseId,
+      examiner: 'police',
+      aggregateHash: aggFromJson,
+      generatedAt: '2026-01-15T12:00:00.000Z',
+      caseJson: caseJsonStr
+    })
+    .expect(200)
+    .expect('Content-Type', /json/);
+
+  assert.match(res.body.requestId || '', /^[0-9a-f-]{36}$/i);
+  assert.ok(res.body.timing);
+  assert.strictEqual(typeof res.body.timing.integrityMs, 'number');
+  assert.strictEqual(typeof res.body.timing.chainMs, 'number');
+  assert.strictEqual(typeof res.body.timing.totalMs, 'number');
+  assert.strictEqual(res.body.blockTimestampUtc, '2026-01-15T12:00:42.000Z');
 });

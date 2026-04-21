@@ -67,6 +67,27 @@
         </java>
     </target>
 
+    <target name="compile-test-all" depends="compile" description="Compile all tests (full plugin classpath)">
+        <mkdir dir="${build.test.classes}"/>
+        <javac srcdir="${test.src.dir}" destdir="${build.test.classes}" source="17" target="17"
+               includeantruntime="false" encoding="UTF-8">
+            <compilerarg value="-proc:none"/>
+            <classpath refid="autopsy.cp"/>
+            <classpath path="${build.dir}/classes"/>
+        </javac>
+    </target>
+
+    <target name="test-gateway" depends="compile-test-all" description="Run GatewayClientTest (Phase 2 mock HTTP)">
+        <java classname="org.sleuthkit.autopsy.report.caseextract.gateway.GatewayClientTest" fork="true" failonerror="true">
+            <jvmarg value="--add-modules"/>
+            <jvmarg value="jdk.httpserver"/>
+            <classpath>
+                <pathelement path="${build.dir}/classes"/>
+                <pathelement path="${build.test.classes}"/>
+            </classpath>
+        </java>
+    </target>
+
     <target name="-do-jar" depends="compile">
         <mkdir dir="${dist.dir}"/>
         <jar destfile="${dist.jar}" basedir="${build.dir}/classes" manifest="${src.dir}/META-INF/MANIFEST.MF"/>

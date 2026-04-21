@@ -16,6 +16,7 @@ import javax.swing.JPanel;
 import org.openide.util.NbBundle;
 import org.sleuthkit.autopsy.casemodule.Case;
 import org.sleuthkit.autopsy.report.GeneralReportModule;
+import org.sleuthkit.autopsy.report.ReportModuleSettings;
 import org.sleuthkit.autopsy.report.ReportProgressPanel;
 import org.sleuthkit.datamodel.AbstractFile;
 import org.sleuthkit.datamodel.Content;
@@ -48,6 +49,9 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
 
     private static CaseDataExtractReportModule instance;
 
+    private CaseDataExtractReportModuleSettings configuredSettings = new CaseDataExtractReportModuleSettings();
+    private UploadSettingsPanel uploadSettingsPanel;
+
     public static synchronized CaseDataExtractReportModule getDefault() {
         if (instance == null) {
             instance = new CaseDataExtractReportModule();
@@ -72,7 +76,39 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
 
     @Override
     public JPanel getConfigurationPanel() {
-        return null;
+        if (uploadSettingsPanel == null) {
+            uploadSettingsPanel = new UploadSettingsPanel();
+        }
+        uploadSettingsPanel.loadFrom(configuredSettings);
+        return uploadSettingsPanel;
+    }
+
+    @Override
+    public ReportModuleSettings getDefaultConfiguration() {
+        return new CaseDataExtractReportModuleSettings();
+    }
+
+    @Override
+    public ReportModuleSettings getConfiguration() {
+        CaseDataExtractReportModuleSettings out = new CaseDataExtractReportModuleSettings();
+        if (uploadSettingsPanel != null) {
+            uploadSettingsPanel.saveTo(out);
+        } else {
+            configuredSettings.copyTo(out);
+        }
+        return out;
+    }
+
+    @Override
+    public void setConfiguration(ReportModuleSettings settings) {
+        if (settings instanceof CaseDataExtractReportModuleSettings s) {
+            configuredSettings = s.copy();
+        } else {
+            configuredSettings = new CaseDataExtractReportModuleSettings();
+        }
+        if (uploadSettingsPanel != null) {
+            uploadSettingsPanel.loadFrom(configuredSettings);
+        }
     }
 
     @Override
