@@ -106,3 +106,27 @@ python -m pytest tests/smoke.py -v
 
 **Note:** Approve/reject mutate chain state. Regenerate **`smoke_config.json`** before a second full run.
 
+---
+
+## S6.3 · HAR (gateway `/api/*`)
+
+The Streamlit UI does not issue browser requests to `api-gateway` directly; for appendix-ready HAR that lists **`/login`**, **`/api/query`**, **`/api/modify/approve`**, **`/api/audit`**, use:
+
+```powershell
+python -m pip install -r tests/requirements-har.txt
+playwright install chromium
+python tests/record_gateway_har.py --out docs/evidence/judge-web/network/approve-flow.har
+```
+
+Run **before** `pytest tests/smoke.py` if you rely on the **Pending** proposal in `smoke_config.json` for approve (or regenerate config after recording).
+
+Manual Chrome steps: **`docs/evidence/judge-web/network/README.md`**.
+
+---
+
+## S6.4 · Cross-browser (Chrome + Edge)
+
+HTTP regression: **`python -m pytest tests/smoke.py -v`** (browser-agnostic).
+
+UI manual pass: same flows in **Chrome** and **Edge**; differences and quirks: **`judge-web/README.md`** → **Known limitations (Phase 6 S6.4 — browsers)**.
+

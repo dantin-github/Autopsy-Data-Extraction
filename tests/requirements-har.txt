@@ -1,0 +1,2 @@
+# Optional — S6.3 HAR recording (Playwright)
+playwright>=1.49.0,<2
