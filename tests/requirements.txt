@@ -1,0 +1,2 @@
+# Phase 6 S6.1 — seed_fixtures.py (S6.2 smoke will add pytest)
+requests>=2.31.0,<3
