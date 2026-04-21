@@ -73,9 +73,13 @@ def logout_completely() -> None:
     The next run creates a fresh ``GatewayClient`` with an empty jar.
     """
     try:
-        from browser_session import clear_persisted_judge_browser_session
+        from browser_session import (
+            clear_persisted_judge_browser_session,
+            drop_cookie_manager_for_current_session,
+        )
 
         clear_persisted_judge_browser_session()
+        drop_cookie_manager_for_current_session()
     except Exception:
         pass
     get_gateway_client().session.cookies.clear()

@@ -61,6 +61,10 @@ inject_theme()
 if "gateway_ping" not in st.session_state:
     st.session_state.gateway_ping = None
 
+# Restore gateway cookie + mirror before any UI reads auth (sidebar, probe).
+try_restore_judge_from_browser_cookies()
+sync_judge_cookie_mirror()
+
 with st.sidebar:
     st.header("Configuration")
     st.markdown("**API Gateway (base URL)**")
@@ -131,9 +135,6 @@ with st.sidebar:
             st.rerun()
 
 _auth_flash = st.session_state.pop("_auth_flash", None)
-
-try_restore_judge_from_browser_cookies()
-sync_judge_cookie_mirror()
 
 if is_judge_authenticated():
     _probe = probe_judge_session()
