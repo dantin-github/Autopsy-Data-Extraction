@@ -1,8 +1,8 @@
-"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1 / S5.2)."""
+"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1–S5.3)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 import pandas as pd
@@ -14,6 +14,8 @@ from workspace_state import (
     PENDING_WORKSPACE_TAB_INDEX_KEY,
     WORKSPACE_REVIEW,
 )
+
+_AUDIT_AUTO_REFRESH_KEY = "audit_trail_auto_refresh_10s"
 
 
 def _dash(v: Any) -> str:
@@ -111,54 +113,82 @@ def render_audit_trail_tab() -> None:
         "Default limit is 50 rows."
     )
 
-    try:
-        data = get_gateway_client().get_audit(limit=50)
-    except GatewayTransportError as e:
-        st.error(str(e))
-        return
-    except GatewayError as e:
-        if e.status == 401:
-            st.error(
-                "Unauthorized. Sign in as a judge to load the audit trail."
-            )
-        else:
-            st.error(f"Request failed ({e.status}): {e.message}")
-        return
-
-    raw_items = data.get("items")
-    items: list[Mapping[str, Any]] = raw_items if isinstance(raw_items, list) else []
-
-    if len(items) == 0:
-        st.info(
-            "No audit rows returned. After a full propose → approve → execute flow with the "
-            "gateway event listener enabled, expect at least three rows here."
-        )
-        return
-
-    rows = [_flatten_audit_item(x) for x in items if isinstance(x, Mapping)]
-    df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    proposal_choices = sorted(
-        {
-            str(r.get("Proposal ID", "")).strip()
-            for r in rows
-            if r.get("Proposal ID") not in (None, "", "—")
-        }
-    )
-    if proposal_choices:
-        st.markdown("##### Open in Judicial Review")
-        st.caption(
-            "Select a proposal ID from this page, then open the Judicial Review tab "
-            "with that snapshot loaded."
-        )
-        pick = st.selectbox(
-            "Proposal ID",
-            options=proposal_choices,
-            key="audit_trail_jump_proposal_select",
-            label_visibility="collapsed",
-        )
-        if st.button("Open in Judicial Review", type="primary", key="audit_open_review_btn"):
-            st.session_state[PENDING_PROPOSAL_ID_KEY] = pick
-            st.session_state[PENDING_WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_REVIEW
+    c_refresh, c_auto, c_live = st.columns([1, 2, 3])
+    with c_refresh:
+        if st.button("Refresh", type="secondary", key="audit_trail_manual_refresh"):
             st.rerun()
+    with c_auto:
+        st.checkbox(
+            "Auto-refresh every 10s",
+            key=_AUDIT_AUTO_REFRESH_KEY,
+        )
+    with c_live:
+        if st.session_state.get(_AUDIT_AUTO_REFRESH_KEY, False):
+            st.caption("Live · polling every 10s")
+
+    def _audit_table_and_jump() -> None:
+        try:
+            data = get_gateway_client().get_audit(limit=50)
+        except GatewayTransportError as e:
+            st.error(str(e))
+            return
+        except GatewayError as e:
+            if e.status == 401:
+                st.error(
+                    "Unauthorized. Sign in as a judge to load the audit trail."
+                )
+            else:
+                st.error(f"Request failed ({e.status}): {e.message}")
+            return
+
+        raw_items = data.get("items")
+        items: list[Mapping[str, Any]] = (
+            raw_items if isinstance(raw_items, list) else []
+        )
+
+        st.caption(
+            "Last fetched: "
+            f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC"
+        )
+
+        if len(items) == 0:
+            st.info(
+                "No audit rows returned. After a full propose → approve → execute flow with the "
+                "gateway event listener enabled, expect at least three rows here."
+            )
+            return
+
+        rows = [_flatten_audit_item(x) for x in items if isinstance(x, Mapping)]
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        proposal_choices = sorted(
+            {
+                str(r.get("Proposal ID", "")).strip()
+                for r in rows
+                if r.get("Proposal ID") not in (None, "", "—")
+            }
+        )
+        if proposal_choices:
+            st.markdown("##### Open in Judicial Review")
+            st.caption(
+                "Select a proposal ID from this page, then open the Judicial Review tab "
+                "with that snapshot loaded."
+            )
+            pick = st.selectbox(
+                "Proposal ID",
+                options=proposal_choices,
+                key="audit_trail_jump_proposal_select",
+                label_visibility="collapsed",
+            )
+            if st.button(
+                "Open in Judicial Review", type="primary", key="audit_open_review_btn"
+            ):
+                st.session_state[PENDING_PROPOSAL_ID_KEY] = pick
+                st.session_state[PENDING_WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_REVIEW
+                st.rerun()
+
+    auto_on = bool(st.session_state.get(_AUDIT_AUTO_REFRESH_KEY, False))
+    st.fragment(run_every=timedelta(seconds=10) if auto_on else None)(
+        _audit_table_and_jump
+    )()
