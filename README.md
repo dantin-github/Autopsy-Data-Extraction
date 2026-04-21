@@ -85,6 +85,37 @@ timestamp, action type, examiner, and detail.
 The hash computation runs in a background thread; the table updates
 automatically every 2 seconds until complete.
 
+---
+
+## Repository components
+
+End-to-end integrity stack bundled in this repository:
+
+| Module | Path | Role |
+|--------|------|------|
+| Autopsy plugin | `src/.../caseextract/` | Case export, file hashes, aggregate hash |
+| API gateway | `api-gateway/` | HTTP façade — upload, query, two-party modify, audit (`:3000`) |
+| Data Presentation Dashboard | `judge-web/` | Streamlit UI for judges/auditors — HTTP to gateway only (`:8501`) |
+| Blockchain + WeBASE helpers | `blockchain/`, `blockchain-setup/` | FISCO BCOS SDK, chain scripts, optional WeBASE |
+| Automated checks | `tests/` | Gateway smoke tests, HAR recorder |
+
+```mermaid
+flowchart LR
+  subgraph Host[Examiner workstation]
+    A[Autopsy + plugin]
+  end
+  subgraph Services[HTTP services]
+    G[api-gateway :3000]
+    D[judge-web Streamlit :8501]
+  end
+  subgraph Chain[FISCO BCOS]
+    C[CRUD + CaseRegistry]
+  end
+  A -->|export / ops| G
+  D -->|requests + session cookie| G
+  G --> C
+```
+
 ### Generating a report
 
 1. Open a case in Autopsy and complete any desired analysis
@@ -215,6 +246,18 @@ The repository includes **`api-gateway/`** — an HTTP gateway that:
 **Dissertation evidence (Phase 9):** **`docs/evidence/`** — ABI copy, CSVs of negative tx hashes, HTTP samples, **chapter → evidence** mapping (`chapter-evidence-mapping.md`), WeBASE screenshot checklist (`docs/evidence/webase/README.md`). Regenerate the ABI copy after contract changes (see `docs/evidence/README.md`).
 
 **Implementation log (CN):** **`docs/project-progress.md`** — incident notes (e.g. Judge Query CRUD vs CaseRegistry alignment, `/api/query` hardening).
+
+---
+
+## Data Presentation Dashboard (Streamlit, port 8501)
+
+The **judge-web** app is a Python + Streamlit dashboard for **judges and auditors**. The browser talks only to Streamlit; the Streamlit process calls **api-gateway** with `requests` and holds the judge session cookie server-side (no blockchain SDK in the browser).
+
+**Quick start:** see **`judge-web/README.md`** — create a venv, `pip install -r judge-web/requirements.txt`, copy `judge-web/.env.example` to `.env`, set `API_GATEWAY_URL`, then `python -m streamlit run app.py` inside `judge-web/`.
+
+**Thesis / appendix evidence** (screenshots, sample verification reports, HAR): **`docs/evidence/judge-web/`** (`mapping.md`, `samples/`, `screens/`, `network/`). Regenerate placeholders and JSON/PDF samples with `python docs/evidence/judge-web/build_evidence_artifacts.py` after `pip install -r docs/evidence/judge-web/requirements-build.txt`.
+
+**Regression:** with gateway running, `python -m pytest tests/smoke.py -v` from the repo root.
 
 ---
 

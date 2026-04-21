@@ -1,0 +1,5 @@
+# One-off deps to regenerate S7.1 samples and placeholder screenshots.
+# Usage: pip install -r docs/evidence/judge-web/requirements-build.txt
+#        python docs/evidence/judge-web/build_evidence_artifacts.py
+pillow>=10.0.0,<12
+reportlab>=4.0.0,<5

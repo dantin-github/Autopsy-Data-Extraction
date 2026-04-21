@@ -1,0 +1,27 @@
+{
+  "caseId": "thesis-appendix-sample-001",
+  "chain": {
+    "indexHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "recordHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "blockNumber": 128,
+    "txHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "caseRegistryTxHash": "0x2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "integrity": {
+    "recordHashMatch": true,
+    "aggregateHashValid": true,
+    "recordHashLocal": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "recordHashOnChain": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "record": {
+    "case_id": "thesis-appendix-sample-001",
+    "examiner": "demo-examiner",
+    "created_at": "2026-04-20T12:00:00Z",
+    "aggregate_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "case_json": {
+      "note": "Appendix sample — replace field values after exporting from a live gateway session if required."
+    }
+  },
+  "verifiedAt": "2026-04-20T12:00:00Z",
+  "verifiedBy": "appendix-build-script"
+}

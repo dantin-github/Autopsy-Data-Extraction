@@ -51,8 +51,18 @@ See **`tests/README.md`** and **`docs/evidence/judge-web/network/README.md`**.
 ## Debugging
 
 - **Session / login loop**: The gateway cookie mirror lives in Streamlit `session_state`. If you restart Streamlit, log in again. If the gateway returns **401** on probe, the app returns to the login form.
+- **`st.rerun()` / widget state**: After forms that call `st.rerun()`, avoid writing to `session_state` keys that are bound to widgets **after** the widget is instantiated in the same run; use a pending key consumed **before** the widget (see `workspace_state.py`).
+- **Lost cookies**: Only `session_state` is persisted across reruns; a Streamlit **server** restart clears sessions — users must log in again.
 - **`127.0.0.1` vs `localhost`**: Use the same host in `.env` as in the browser to avoid cookie / CSRF confusion.
 - **Chain / 503**: Judicial and query tabs need a configured gateway (`CASE_REGISTRY_ADDR`, certs) for contract mode.
+
+## Clean machine checklist (with smoke)
+
+1. Start **api-gateway** per `api-gateway/README.md` (`npm run dev`, seeded judge + police users).
+2. Create **`tests/smoke_config.json`**: `python tests/seed_fixtures.py --prepare-smoke` (see `tests/README.md`).
+3. `python -m pytest tests/smoke.py -v` — all green against `:3000`.
+4. In another terminal: `cd judge-web`, venv, `pip install -r requirements.txt`, `python -m streamlit run app.py`.
+5. Open `:8501`, log in as judge, exercise Query → Judicial Review → Audit Trail.
 
 ## Known limitations (Phase 6 S6.4 — browsers)
 
@@ -69,4 +79,9 @@ Manual smoke on **Google Chrome** and **Microsoft Edge** (same machine, same gat
 
 ## Dissertation / evidence
 
-Screenshots and HAR conventions: **`docs/evidence/judge-web/`** (`mapping.md`, `network/`).
+Thesis pack root: **`docs/evidence/judge-web/`**.
+
+- **`mapping.md`** — chapter → file mapping (screens, samples, HAR).
+- **`samples/`** — `verification_report.json` / `.pdf`; validate JSON with `python docs/evidence/judge-web/verify_sample.py`.
+- **`screens/`** — PNG checklist in `screens/README.md` (replace placeholders for the final dissertation).
+- **`network/`** — `approve-flow.har` (gateway REST); see `network/README.md` for regeneration and redaction.
