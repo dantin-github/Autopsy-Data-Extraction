@@ -11,6 +11,7 @@ const config = require('../config');
 const chain = require('./chain');
 const { logger } = require('../logger');
 const { parseReceiptBlockNumber } = require('./receiptBlockNumber');
+const { serializeEventArgs } = require('./auditEventArgs');
 
 const apiRoot = path.join(__dirname, '..', '..');
 const abiPath = path.join(apiRoot, 'build', 'CaseRegistry.abi');
@@ -53,32 +54,6 @@ function loadState() {
 function saveState(state) {
   fs.mkdirSync(path.dirname(config.auditStatePath), { recursive: true });
   fs.writeFileSync(config.auditStatePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-}
-
-function serializeArgs(args) {
-  if (!args) {
-    return {};
-  }
-  const out = {};
-  for (const key of Object.keys(args)) {
-    if (String(key).match(/^\d+$/)) {
-      continue;
-    }
-    const v = args[key];
-    if (v == null) {
-      continue;
-    }
-    if (ethers.utils.BigNumber.isBigNumber(v)) {
-      out[key] = v.toString();
-    } else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-      out[key] = v;
-    } else if (typeof v === 'object' && typeof v.toHexString === 'function') {
-      out[key] = v.toHexString().toLowerCase();
-    } else {
-      out[key] = String(v);
-    }
-  }
-  return out;
 }
 
 function appendAuditLine(obj) {
@@ -147,7 +122,7 @@ async function processBlock(web3j, iface, contractAddrLower, blockNum) {
           txHash,
           logIndex,
           event: ev.name,
-          args: serializeArgs(ev.args)
+          args: serializeEventArgs(ev)
         });
         written += 1;
       } catch (_) {

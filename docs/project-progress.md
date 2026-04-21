@@ -59,6 +59,13 @@
 
 ---
 
+## 2026-04：Audit 中 `proposalId` / `caller` 为空
+
+- **原因**：`eventListener` 里旧版 `serializeArgs` 用 `Object.keys(ev.args)` 且跳过数字键；ethers v5 的 `Result` 往往只有可枚举的数字下标，导致写入 **`args: {}`**，Judge 表格中 **proposalId**、**caller** 全为 `—`。  
+- **修复**：按 **`ev.fragment.inputs`** 下标与 **`ev.args[i]`** 序列化（`auditEventArgs.js`）。**新产生**的审计行会带齐字段；历史 `audit.jsonl` 仍为空对象则需依赖新事件或清空后重跑。
+
+---
+
 ## 2026-04：Audit `blockNumber` 与排序
 
 - **现象**：`audit.jsonl` 顶行出现 ~10 万级 `blockNumber`，而当前链仅 ~800；时间却比下方行更旧。  
