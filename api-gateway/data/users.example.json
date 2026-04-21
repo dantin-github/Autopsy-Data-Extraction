@@ -4,7 +4,10 @@
     "username": "officer1",
     "email": "juven983@gmail.com",
     "role": "police",
-    "passwordPlain": "1"
+    "passwordPlain": "1",
+    "formerOnchainAddresses": [
+      "0xec1c16b3d60d5681f2137608b6970b612b1f0840"
+    ]
   },
   {
     "userId": "u-police-plan",
@@ -25,6 +28,9 @@
     "username": "judge1",
     "email": "judge1@example.com",
     "role": "judge",
-    "passwordPlain": "1"
+    "passwordPlain": "1",
+    "formerOnchainAddresses": [
+      "0x69cbbf354d8a41606a7266de62a2c9c23a14b16a"
+    ]
   }
 ]

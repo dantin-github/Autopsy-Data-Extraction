@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "seed-users": "node scripts/seed-users.js",
     "seed-roles": "node scripts/seed-roles.js",
+    "verify-users-keystore": "node scripts/verify-users-keystore.js",
     "verify-case-registry-roles": "node scripts/verify-case-registry-roles.js",
     "hash-compare": "node scripts/hash-compare-demo.js",
     "generate-hash-samples": "node scripts/generate-hash-samples.js",

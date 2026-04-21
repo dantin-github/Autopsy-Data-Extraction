@@ -64,6 +64,33 @@ function buildIndexHashToCaseIdMap() {
   return map;
 }
 
+function loadOptionalAuditAddressAliases() {
+  const fs = require('fs');
+  const path = require('path');
+  const map = new Map();
+  const p = path.join(__dirname, '..', '..', 'data', 'audit-address-aliases.json');
+  if (!fs.existsSync(p)) {
+    return map;
+  }
+  let obj;
+  try {
+    obj = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return map;
+  }
+  if (!obj || typeof obj !== 'object') {
+    return map;
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    const addr = normalizeAddressKey(k);
+    const label = v != null && String(v).trim() !== '' ? String(v).trim() : '';
+    if (addr && label) {
+      map.set(addr, label);
+    }
+  }
+  return map;
+}
+
 function buildAddressToDisplayMap() {
   userStore.clearCache();
   const map = new Map();
@@ -77,18 +104,35 @@ function buildAddressToDisplayMap() {
     return map;
   }
   for (const u of users) {
-    const addrRaw = u && u.onchainAddress != null ? String(u.onchainAddress).trim() : '';
-    const ak = normalizeAddressKey(addrRaw);
-    if (!ak) {
-      continue;
-    }
     const uname =
       u.username != null && String(u.username).trim() !== ''
         ? String(u.username).trim()
-        : String(u.userId || '').trim() || ak;
+        : String(u.userId || '').trim() || 'user';
     const role = u.role != null && String(u.role).trim() !== '' ? String(u.role).trim().toLowerCase() : '';
     const label = role ? `${uname} (${role})` : uname;
-    map.set(ak, label);
+
+    const addrKeys = [];
+    const primary = u && u.onchainAddress != null ? String(u.onchainAddress).trim() : '';
+    const pk = normalizeAddressKey(primary);
+    if (pk) {
+      addrKeys.push(pk);
+    }
+    const former = u && u.formerOnchainAddresses;
+    if (Array.isArray(former)) {
+      for (const x of former) {
+        const fk = normalizeAddressKey(x);
+        if (fk) {
+          addrKeys.push(fk);
+        }
+      }
+    }
+    for (const ak of addrKeys) {
+      map.set(ak, label);
+    }
+  }
+  const aliases = loadOptionalAuditAddressAliases();
+  for (const [addr, label] of aliases) {
+    map.set(addr, label);
   }
   return map;
 }

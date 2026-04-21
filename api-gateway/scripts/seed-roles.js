@@ -6,6 +6,10 @@
  * data/keystore/<userId>.enc, then register the address on CaseRegistry via addPolice / addJudge
  * (onlyOwner — uses gateway account). Updates users.json with onchainAddress.
  *
+ * Historic audit rows keep old signer addresses. After re-seeding keys, add those addresses
+ * to each user's optional `formerOnchainAddresses` in users.json (see users.example.json), or
+ * add data/audit-address-aliases.json, so the audit Caller column still resolves.
+ *
  * Prerequisites:
  *   - npm run seed-users (users.json exists)
  *   - users.example.json still contains passwordPlain for each userId (used only by this script)

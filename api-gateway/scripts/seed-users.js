@@ -15,6 +15,23 @@ async function main() {
     throw new Error('users.example.json must be a JSON array');
   }
 
+  const existingByUserId = new Map();
+  if (fs.existsSync(outPath)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+      if (Array.isArray(prev)) {
+        for (const r of prev) {
+          const id = String(r.userId || '').trim();
+          if (id) {
+            existingByUserId.set(id, r);
+          }
+        }
+      }
+    } catch {
+      /* ignore corrupt users.json */
+    }
+  }
+
   const out = [];
   for (const row of rows) {
     const { passwordPlain, passwordHash, ...rest } = row;
@@ -26,7 +43,12 @@ async function main() {
       throw new Error(`user ${row.username}: passwordPlain is required for seeding`);
     }
     const hash = await bcrypt.hash(String(passwordPlain), 12);
-    out.push({ ...rest, passwordHash: hash });
+    const merged = { ...rest, passwordHash: hash };
+    const prevRow = existingByUserId.get(String(rest.userId || '').trim());
+    if (prevRow && prevRow.onchainAddress != null && String(prevRow.onchainAddress).trim() !== '') {
+      merged.onchainAddress = String(prevRow.onchainAddress).trim();
+    }
+    out.push(merged);
   }
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
