@@ -112,3 +112,10 @@ test('S8.2: readAuditLines 1000 lines p95 under 200ms (local)', () => {
   const p95 = times[Math.floor(times.length * 0.95)];
   assert.ok(p95 < 200, `expected p95 < 200ms, got ${p95}ms`);
 });
+
+test('userStore exports getUsers (required by audit address → username map)', () => {
+  const userStore = require('../src/services/userStore');
+  assert.strictEqual(typeof userStore.getUsers, 'function');
+  const list = userStore.getUsers();
+  assert.ok(Array.isArray(list));
+});

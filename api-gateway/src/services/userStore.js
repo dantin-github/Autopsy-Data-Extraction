@@ -70,6 +70,7 @@ async function verifyCredentials(username, password) {
 
 module.exports = {
   clearCache,
+  getUsers,
   findByUsername,
   findByUserId,
   verifyPassword,
