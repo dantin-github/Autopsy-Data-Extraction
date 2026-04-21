@@ -6,7 +6,7 @@ Seeds **one case on chain** (via `POST /api/upload`) and **one Pending modify pr
 
 ### Prerequisites
 
-- **api-gateway** running (`npm run dev` in `api-gateway/`), with **`CHAIN_MODE=contract`**, **`CASE_REGISTRY_ADDR`**, FISCO config + certs, **`MAIL_DRY_RUN=1`** recommended (OTP appears in the gateway terminal log).
+- **api-gateway** running (`npm run dev` in `api-gateway/`). **`CHAIN_MODE=contract`** is the gateway default; ensure **`CASE_REGISTRY_ADDR`**, FISCO config + certs, and **`MAIL_DRY_RUN=1`** (recommended — OTP in the gateway log).
 - **`npm run seed-users`** / **`npm run seed-roles`** done (police **`officer1`** / judge **`judge1`**, password **`1`** in the sample data).
 - **Same `RECORD_STORE_PATH`** as the gateway when generating the propose body (default: `%USERPROFILE%\.case_record_store.json` on Windows, `~/.case_record_store.json` elsewhere). If the gateway uses a custom path, set the same variable for the Node scripts, e.g.  
   `set RECORD_STORE_PATH=D:\path\to\store.json` (PowerShell: `$env:RECORD_STORE_PATH=...`).

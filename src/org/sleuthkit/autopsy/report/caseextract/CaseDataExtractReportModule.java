@@ -52,6 +52,10 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
     private CaseDataExtractReportModuleSettings configuredSettings = new CaseDataExtractReportModuleSettings();
     private UploadSettingsPanel uploadSettingsPanel;
 
+    public CaseDataExtractReportModule() {
+        CaseDataExtractUploadPreferences.applyTo(configuredSettings);
+    }
+
     public static synchronized CaseDataExtractReportModule getDefault() {
         if (instance == null) {
             instance = new CaseDataExtractReportModule();
@@ -96,6 +100,7 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
         } else {
             configuredSettings.copyTo(out);
         }
+        CaseDataExtractUploadPreferences.saveFrom(out);
         return out;
     }
 

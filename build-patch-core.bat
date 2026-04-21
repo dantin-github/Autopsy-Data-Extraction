@@ -42,6 +42,7 @@ if not exist "%OUT%" mkdir "%OUT%"
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CanonicalJson.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseDataExtractReportModule.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseDataExtractReportModuleSettings.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseDataExtractUploadPreferences.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseEventRecorder.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseDataExtractMonitorTopComponent.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\OpenCaseDataExtractMonitorAction.java" ^

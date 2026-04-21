@@ -3,6 +3,9 @@
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-modify-session-secret';
 process.env.MAIL_DRY_RUN = process.env.MAIL_DRY_RUN || '1';
 process.env.CASE_REGISTRY_ADDR = '0x1111111111111111111111111111111111111111';
+/* Isolate from production default CHAIN_MODE=contract: these tests mock modify/chain only, not CaseRegistry upload. */
+process.env.CHAIN_MODE = 'crud';
+process.env.UPLOAD_USE_CASE_REGISTRY = '0';
 
 const fs = require('fs');
 const os = require('os');

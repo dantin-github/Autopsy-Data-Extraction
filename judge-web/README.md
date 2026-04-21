@@ -6,7 +6,7 @@ Python + Streamlit dashboard for judges and auditors. It talks to **api-gateway*
 
 - Python **3.11+** (3.13 tested)
 - Running **api-gateway** (default `http://127.0.0.1:3000`) with judge accounts seeded
-- Optional: FISCO / `CHAIN_MODE=contract` for full query + modify + audit behaviour
+- Gateway should use **`CHAIN_MODE=contract`** (default in api-gateway) with **`CASE_REGISTRY_ADDR`** for full query + modify + audit behaviour
 
 ## Quick start
 

@@ -29,7 +29,7 @@ Police / judge demo accounts are defined in **`data/users.example.json`** (passw
 | `RECORD_STORE_PATH` | Private JSON store (default: `%USERPROFILE%\.case_record_store.json`). |
 | Chain | `conf/fisco-config.json` + `conf/accounts/gateway.pem` — see `.env.example`. |
 | `CASE_REGISTRY_ADDR` | Set by **`npm run deploy-contract`** (S5.1) after compiling `CaseRegistry`. |
-| `CHAIN_MODE` | **`crud`** (default) or **`contract`**. **`contract`** + **`CASE_REGISTRY_ADDR`** = dual write CRUD + **`CaseRegistry.createRecord`** (needs **`signingPassword`** on upload). |
+| `CHAIN_MODE` | **`contract`** (default) or **`crud`**. With **`CASE_REGISTRY_ADDR`** set, **`contract`** = `t_case_hash` insert + **`CaseRegistry.createRecord`** (needs **`signingPassword`** on upload). **`crud`** = table insert only (legacy / tests). |
 | `UPLOAD_USE_CASE_REGISTRY` | Legacy **`1`** = same contract path as **`CHAIN_MODE=contract`** when address is set. |
 
 ## S3.7 smoke (6 checks, no separate server)
@@ -129,9 +129,9 @@ Enable with **`CHAIN_MODE=contract`** (or legacy **`UPLOAD_USE_CASE_REGISTRY=1`*
 
 ## Phase 6 · CHAIN_MODE + smoke regression (S6.1 / S6.2)
 
-**`CHAIN_MODE`** — **`crud`** (default): **`POST /api/upload`** only inserts into **`t_case_hash`**. **`contract`**: after CRUD, **`chain.createCaseRegistryRecordFromKeystore`** delegates to **`caseRegistryTx`** (same as S5.4). Configure **`CASE_REGISTRY_ADDR`** and **`signingPassword`** on upload.
+**`CHAIN_MODE`** — **`contract`** (default): when **`CASE_REGISTRY_ADDR`** is set, **`POST /api/upload`** inserts into **`t_case_hash`** then **`chain.createCaseRegistryRecordFromKeystore`** (**`caseRegistryTx`**, S5.4); requires **`signingPassword`**. **`crud`**: table insert only (no CaseRegistry tx on upload).
 
-**`npm run smoke`** runs **twelve** checks: the original six (**`CHAIN_MODE=crud`**) plus the same six with **`CHAIN_MODE=contract`** and **`CaseRegistry`** calls **mocked** (no live signing).
+**`npm run smoke`** runs **twelve** checks: six with **`CHAIN_MODE=contract`** (**CaseRegistry** mocked) plus six with **`CHAIN_MODE=crud`** (table-only path).
 
 ## Run the server
 

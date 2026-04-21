@@ -11,7 +11,13 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
 
     private String gatewayUrl = "http://localhost:3000";
     private boolean uploadEnabled;
-    private String contractMode = "crud";
+    /** Always CaseRegistry path; legacy "crud" from older configs is ignored at upload time. */
+    private String contractMode = "contract";
+
+    /** Session-only; not serialized (NbPreferences will not store this in S3.3). */
+    private transient String oneTimeToken = "";
+
+    private transient String signingPassword = "";
 
     public CaseDataExtractReportModuleSettings() {
     }
@@ -38,11 +44,34 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
     }
 
     public String getContractMode() {
-        return contractMode != null ? contractMode : "crud";
+        return normalizeContractMode(contractMode);
     }
 
     public void setContractMode(String contractMode) {
-        this.contractMode = contractMode != null ? contractMode : "crud";
+        this.contractMode = normalizeContractMode(contractMode);
+    }
+
+    private static String normalizeContractMode(String mode) {
+        if (mode == null || mode.isBlank() || "crud".equalsIgnoreCase(mode.trim())) {
+            return "contract";
+        }
+        return mode.trim();
+    }
+
+    public String getOneTimeToken() {
+        return oneTimeToken != null ? oneTimeToken : "";
+    }
+
+    public void setOneTimeToken(String oneTimeToken) {
+        this.oneTimeToken = oneTimeToken != null ? oneTimeToken : "";
+    }
+
+    public String getSigningPassword() {
+        return signingPassword != null ? signingPassword : "";
+    }
+
+    public void setSigningPassword(String signingPassword) {
+        this.signingPassword = signingPassword != null ? signingPassword : "";
     }
 
     CaseDataExtractReportModuleSettings copy() {
@@ -57,6 +86,8 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
         }
         o.gatewayUrl = this.gatewayUrl;
         o.uploadEnabled = this.uploadEnabled;
-        o.contractMode = this.contractMode;
+        o.contractMode = normalizeContractMode(this.contractMode);
+        o.oneTimeToken = this.oneTimeToken;
+        o.signingPassword = this.signingPassword;
     }
 }

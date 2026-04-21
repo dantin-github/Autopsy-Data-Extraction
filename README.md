@@ -237,7 +237,7 @@ See `blockchain/README.md` and `blockchain-setup/README.md` for details.
 
 The repository includes **`api-gateway/`** — an HTTP gateway that:
 
-- uploads case hashes (`POST /api/upload`) and writes to FISCO CRUD + optional **`CaseRegistry`** (`CHAIN_MODE=contract`);
+- uploads case hashes (`POST /api/upload`) to FISCO **`t_case_hash`** and, by default with **`CHAIN_MODE=contract`**, **`CaseRegistry`** (`createRecord` needs **`signingPassword`**);
 - runs the **two-party** flow (`/api/modify/*`) against **`CaseRegistry.sol`**;
 - appends contract events to **`data/audit.jsonl`** and exposes **`GET /api/audit`** (judge session).
 

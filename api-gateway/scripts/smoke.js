@@ -4,8 +4,8 @@
  * Phase 3 S3.7 + Phase 6 S6.2 smoke: 6 checks × 2 modes (supertest + chain mocks).
  * Run from api-gateway: npm run smoke
  *
- * 1) CHAIN_MODE=crud (default): CRUD-only upload path (original S3.7).
- * 2) CHAIN_MODE=contract: same 6 checks with CaseRegistry.createRecord mocked on chain service.
+ * 1) CHAIN_MODE=contract: primary path — CaseRegistry.createRecord mocked on chain service.
+ * 2) CHAIN_MODE=crud: legacy table-only upload path (no CaseRegistry call).
  *
  * Assertions each run:
  *  1) GET /health
@@ -242,8 +242,8 @@ async function runSixChecks(label, mode) {
 
   delete require.cache[require.resolve('../src/services/userStore')];
 
-  await runSixChecks('S3.7 smoke (CRUD path)', 'crud');
   await runSixChecks('S6.2 smoke (CHAIN_MODE=contract, CaseRegistry mocked)', 'contract');
+  await runSixChecks('S3.7 smoke (CHAIN_MODE=crud, table-only path)', 'crud');
 
   try {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -251,7 +251,7 @@ async function runSixChecks(label, mode) {
     /* ignore */
   }
 
-  console.log('\nS3.7 + S6.2 smoke: both modes passed (12 checks total).');
+  console.log('\nS6.2 + S3.7 smoke: contract + crud regression passed (12 checks total).');
   process.exit(0);
 })().catch((e) => {
   fail('smoke failed', e);
