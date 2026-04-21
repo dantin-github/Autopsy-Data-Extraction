@@ -1,4 +1,4 @@
-"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1 / S5.3)."""
+"""Audit Trail tab — CaseRegistry audit log as dataframe (plan S5.1 / S5.2)."""
 
 from __future__ import annotations
 

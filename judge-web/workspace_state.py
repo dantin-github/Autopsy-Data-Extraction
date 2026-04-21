@@ -1,4 +1,4 @@
-"""Shared session_state keys for main workspace tab + cross-tab navigation (S5.3)."""
+"""Shared session_state keys for main workspace tab + cross-tab navigation (S5.2)."""
 
 from __future__ import annotations
 

@@ -35,7 +35,7 @@ from session_guard import (
 
 
 def _render_judge_workspace() -> None:
-    """Main workspace: radio navigation so Audit can switch to Judicial Review (S5.3)."""
+    """Main workspace: radio navigation so Audit can switch to Judicial Review (S5.2)."""
     _pending_tab = st.session_state.pop(PENDING_WORKSPACE_TAB_INDEX_KEY, None)
     if _pending_tab is not None:
         try:
