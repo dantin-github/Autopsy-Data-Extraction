@@ -49,17 +49,4 @@
 
 ---
 
----
-
-## 2026-04：Judge Web · S5.1（CaseRegistry 部署可见性）
-
-计划文件中的 **S5.1** 与 `api-gateway/README.md` **Phase 5 · Deploy CaseRegistry (S5.1)** 对齐（`npm run deploy-contract`）。在 Judge Dashboard 侧补充：
-
-- **`GET /health`** 增加 **`gateway`** 对象：链模式、FISCO CRUD 是否就绪、`CASE_REGISTRY_ADDR` 是否已配置（仅返回地址 **末 6 位 hex** 便于对账，不暴露完整地址）、上传是否走合约路径。
-- **Streamlit 侧边栏**「**CaseRegistry (S5.1)**」：静态说明 + 在 **Ping Gateway** 成功后展示上述字段。
-
-涉及：`api-gateway/src/app.js`、`api-gateway/test/health.test.js`、`judge-web/app.py`。
-
----
-
 *Last updated: 2026-04-20*

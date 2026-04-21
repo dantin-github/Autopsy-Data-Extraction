@@ -108,19 +108,8 @@ async function runSixChecks(label, mode) {
     }
     const rh = String(lastInsertRow.recordHash);
     const recordHash = rh.startsWith('0x') ? rh : `0x${rh}`;
-    const indexHashHex = `0x${have}`;
-    return {
-      indexHash: indexHashHex,
-      recordHash,
-      rows: [{ index_hash: indexHashHex, record_hash: recordHash }],
-    };
+    return { indexHash: `0x${have}`, recordHash, rows: [{ record_hash: recordHash }] };
   };
-
-  const caseRegistryTx = require('../src/services/caseRegistryTx');
-  const origGetRegRh = caseRegistryTx.getRecordHashOnRegistry;
-  if (mode === 'contract') {
-    caseRegistryTx.getRecordHashOnRegistry = async () => null;
-  }
 
   const mailer = require('../src/services/mailer');
   const origMailSend = mailer.send;
@@ -213,7 +202,6 @@ async function runSixChecks(label, mode) {
 
     console.log(`\n${label}: all 6 checks passed.`);
   } finally {
-    caseRegistryTx.getRecordHashOnRegistry = origGetRegRh;
     chain.insertRecord = origInsert;
     chain.selectRecordByIndexHash = origIdx;
     chain.createCaseRegistryRecordFromKeystore = origCr;

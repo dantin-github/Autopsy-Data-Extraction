@@ -85,7 +85,6 @@ with st.sidebar:
                 "latency_ms": latency_ms,
                 "checked_at": checked_at,
                 "uptime": body.get("uptime"),
-                "body": body,
             }
         except GatewayTransportError as e:
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -120,43 +119,6 @@ with st.sidebar:
         st.caption(f"Last check: {ping['checked_at']}")
         err = ping.get("error") or "Unknown error"
         st.caption(err[:500] + ("…" if len(err) > 500 else ""))
-
-    st.divider()
-    st.subheader("CaseRegistry (S5.1)")
-    st.caption(
-        "Deploy **CaseRegistry** on the gateway host: `cd api-gateway` then "
-        "`npm run compile -- contracts/CaseRegistry.sol` and `npm run deploy-contract`. "
-        "See **Phase 5 · Deploy CaseRegistry (S5.1)** in `api-gateway/README.md`."
-    )
-    ping_body = (
-        (st.session_state.gateway_ping or {}).get("body")
-        if isinstance(st.session_state.gateway_ping, dict)
-        else None
-    )
-    gw = (
-        ping_body.get("gateway")
-        if isinstance(ping_body, dict) and isinstance(ping_body.get("gateway"), dict)
-        else None
-    )
-    if gw:
-        rows = [
-            ("CHAIN_MODE (reported)", str(gw.get("chainMode", ""))),
-            ("FISCO CRUD configured", "yes" if gw.get("chainConfigured") else "no"),
-            ("CASE_REGISTRY_ADDR set", "yes" if gw.get("caseRegistryConfigured") else "no"),
-            (
-                "Registry address (last 6 hex)",
-                str(gw.get("caseRegistryAddrTail") or "-"),
-            ),
-            (
-                "Upload uses contract path",
-                "yes" if gw.get("uploadContractPathEnabled") else "no",
-            ),
-        ]
-        st.markdown(
-            "\n".join(f"- **{label}:** `{value}`" for label, value in rows)
-        )
-    else:
-        st.caption("Run **Ping Gateway** above to load chain / CaseRegistry flags from `/health`.")
 
     if is_judge_authenticated():
         st.divider()

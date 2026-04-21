@@ -139,7 +139,7 @@ Enable with **`CHAIN_MODE=contract`** (or legacy **`UPLOAD_USE_CASE_REGISTRY=1`*
 npm run dev
 ```
 
-Health: `GET http://localhost:3000/health` returns **`status`**, **`uptime`**, and **`gateway`** ( **`chainMode`**, **`chainConfigured`**, **`caseRegistryConfigured`**, **`caseRegistryAddrTail`** last 6 hex when address is valid, **`uploadContractPathEnabled`**) for operators and the Judge Dashboard (S5.1 visibility).
+Health: `GET http://localhost:3000/health`
 
 ## Tests
 
