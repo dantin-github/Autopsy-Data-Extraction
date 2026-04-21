@@ -49,4 +49,14 @@
 
 ---
 
-*Last updated: 2026-04-20*
+## 2026-04：Judge Web S5.1（权威计划 Phase 5）
+
+按 **`judge_web_dashboard_plan_1e12b7be.plan.md` §6**：**S5.1** 为 **Audit Trail** 基础渲染，而非 api-gateway 的 CaseRegistry 部署步骤。
+
+- **`pages_ui/audit_trail_tab.py`**：`GET /api/audit?limit=50` → **`st.dataframe`**，列 **ts / event / proposalId / caller / txHash / blockNumber**（由 `args` 映射 `creator` / `proposer` / `approver`；无则 `—`）。
+- **`requirements.txt`**：显式加入 **pandas**（供 DataFrame）。
+- **`api-gateway/scripts/smoke.js`**：保留与 **`getMirroredRecordHash`** 及合约模式上传对账兼容的 mock（与 S5.1 无冲突）。
+
+---
+
+*Last updated: 2026-04-21*
