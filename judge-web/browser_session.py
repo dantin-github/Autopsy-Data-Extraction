@@ -25,14 +25,20 @@ except ImportError:  # pragma: no cover
 COOKIE_SID = "jw_gw_sid"
 COOKIE_USER = "jw_user_json"
 _CM_WIDGET_KEY = "jw_case_cookie_manager_v1"
+_CM_SINGLETON_STATE_KEY = "_jw_cookie_manager_singleton"
 _HYDRATE_ATTEMPTS = "_jw_cookie_hydrate_attempts"
 _MAX_HYDRATE_RERUNS = 2
 
 
 def _cookie_manager() -> Any:
+    """One CookieManager per Streamlit session run — avoids duplicate component key errors."""
     if CookieManager is None:
         return None
-    return CookieManager(key=_CM_WIDGET_KEY)
+    cm = st.session_state.get(_CM_SINGLETON_STATE_KEY)
+    if cm is None:
+        cm = CookieManager(key=_CM_WIDGET_KEY)
+        st.session_state[_CM_SINGLETON_STATE_KEY] = cm
+    return cm
 
 
 def persist_judge_browser_session(gw_sid: str, user: dict[str, Any]) -> None:
