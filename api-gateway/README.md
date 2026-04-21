@@ -153,6 +153,8 @@ Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from
 
 **Phase 6 S6.1 (case + Pending proposal):** from repo root, `python tests/seed_fixtures.py --gateway-dir api-gateway` (see **`tests/README.md`**). It runs `gen-e2e-upload-body` / `gen-e2e-propose-body`, upload + police session + propose, then verifies **`POST /api/query`** and **`GET /api/modify/:proposalId`** (Pending).
 
+**Phase 6 S6.2 (pytest smoke):** `python tests/seed_fixtures.py --prepare-smoke --gateway-dir api-gateway` then `python -m pytest tests/smoke.py -v` (optional `SMOKE_POLICE_OTP` for the police role-gate assertion). Details in **`tests/README.md`**.
+
 ## Phase 7 · 链上修改提议 / 审批（S7.1–S7.6）手动验证
 
 前提与 S7.1 相同：**`CHAIN_MODE=contract`**、**`CASE_REGISTRY_ADDR`** 已配置，**`conf/fisco-config.json`** + 证书可用，已 **`npm run compile -- contracts/CaseRegistry.sol`**、**`npm run deploy-contract`**、**`npm run seed-roles`**（警察 / 法官 **`onchainAddress`** 与 **`data/keystore/<userId>.enc`** 就绪）。网关 **`npm run dev`**。

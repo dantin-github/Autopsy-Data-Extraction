@@ -79,3 +79,6 @@ Thumbs.db
 .idea/
 .vscode/
 nbproject/private/
+
+# Python pytest
+.pytest_cache/

@@ -52,3 +52,57 @@ curl -s -b judge-cookies.txt http://localhost:3000/api/modify/<proposalId>
 ```
 
 Use the `proposalId` printed by the script or read `tests/.seed_fixture_result.json`.
+
+---
+
+## S6.2 · `smoke.py` (pytest + requests)
+
+Seven HTTP checks against a **running** api-gateway:
+
+| # | Check |
+|---|--------|
+| 1 | Judge `POST /login` JSON → `role=judge` |
+| 2 | `POST /api/query` → `recordHashMatch` / `aggregateHashValid` |
+| 3 | Tamper local `RECORD_STORE_PATH` row → mismatch → restore |
+| 4 | `POST /api/modify/approve` (case A proposal) |
+| 5 | `POST /api/modify/reject` (case B proposal) |
+| 6 | `GET /api/audit?limit=50` → at least **`SMOKE_AUDIT_MIN`** rows (default **4**) |
+| 7 | Police `POST /api/auth/police-otp` then `POST /api/query` → **401** |
+
+### One-time: generate `smoke_config.json`
+
+From repo root (gateway must be up; you will paste **four** 16-hex OTPs from `MAIL_DRY_RUN` logs — two per case):
+
+```powershell
+python -m pip install -r tests/requirements.txt
+python tests/seed_fixtures.py --prepare-smoke --gateway-dir api-gateway
+```
+
+This writes **`tests/smoke_config.json`** (gitignored). Use the same host in the config as you use for login (`127.0.0.1` vs `localhost` matters for cookies if you mix them).
+
+Non-interactive OTPs for case A/B: set **`SEED_A_OTP_UPLOAD`**, **`SEED_A_OTP_SESSION`**, **`SEED_B_OTP_UPLOAD`**, **`SEED_B_OTP_SESSION`**.
+
+### Role-gate test (7th)
+
+1. `POST /login` as `officer1` with `Accept: application/json` (do **not** consume the OTP yet).
+2. Copy the new 16-hex OTP from the gateway log.
+3. PowerShell: `$env:SMOKE_POLICE_OTP='xxxxxxxxxxxxxxxx'`
+4. Immediately: `python -m pytest tests/smoke.py -v` (OTP TTL is short).
+
+If you omit `SMOKE_POLICE_OTP`, test 7 is **skipped** (the other six still run).
+
+### Run smoke
+
+```powershell
+python -m pytest tests/smoke.py -v
+```
+
+Looser audit threshold (e.g. dev chain without many events yet):
+
+```powershell
+$env:SMOKE_AUDIT_MIN='1'
+python -m pytest tests/smoke.py -v
+```
+
+**Note:** Approve/reject mutate chain state. Regenerate **`smoke_config.json`** before a second full run.
+

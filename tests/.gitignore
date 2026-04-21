@@ -1,3 +1,4 @@
 .seed_fixture_result.json
+smoke_config.json
 __pycache__/
 *.pyc
