@@ -7,6 +7,29 @@ const { getDefaultRecordStore } = require('./recordStore');
 const userStore = require('./userStore');
 const caseRegistryTx = require('./caseRegistryTx');
 
+/**
+ * Normalize an EVM address from ABI/log decoding: 20-byte hex or 32-byte left-padded word.
+ * @param {unknown} raw
+ * @returns {string|null} `0x` + 40 lowercase hex, or null
+ */
+function coerceEvmAddress(raw) {
+  if (raw == null) {
+    return null;
+  }
+  let s = String(raw).trim().toLowerCase();
+  if (!s.startsWith('0x')) {
+    s = `0x${s}`;
+  }
+  const hex = s.slice(2);
+  if (/^[0-9a-f]{40}$/.test(hex)) {
+    return `0x${hex}`;
+  }
+  if (/^[0-9a-f]{64}$/.test(hex)) {
+    return `0x${hex.slice(-40)}`;
+  }
+  return null;
+}
+
 /** @param {string} h */
 function normalizeIndexHashKey(h) {
   if (h == null) {
@@ -19,16 +42,9 @@ function normalizeIndexHashKey(h) {
   return `0x${s}`;
 }
 
-/** @param {string} a */
+/** @param {unknown} a */
 function normalizeAddressKey(a) {
-  if (a == null || String(a).trim() === '') {
-    return null;
-  }
-  const s = String(a).trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(s)) {
-    return null;
-  }
-  return s;
+  return coerceEvmAddress(a);
 }
 
 function buildIndexHashToCaseIdMap() {
@@ -48,7 +64,8 @@ function buildIndexHashToCaseIdMap() {
   return map;
 }
 
-function buildAddressToUsernameMap() {
+function buildAddressToDisplayMap() {
+  userStore.clearCache();
   const map = new Map();
   let users;
   try {
@@ -60,15 +77,17 @@ function buildAddressToUsernameMap() {
     return map;
   }
   for (const u of users) {
-    const addr = u && u.onchainAddress != null ? String(u.onchainAddress).trim() : '';
-    const ak = normalizeAddressKey(addr);
+    const addrRaw = u && u.onchainAddress != null ? String(u.onchainAddress).trim() : '';
+    const ak = normalizeAddressKey(addrRaw);
     if (!ak) {
       continue;
     }
-    const label =
+    const uname =
       u.username != null && String(u.username).trim() !== ''
         ? String(u.username).trim()
         : String(u.userId || '').trim() || ak;
+    const role = u.role != null && String(u.role).trim() !== '' ? String(u.role).trim().toLowerCase() : '';
+    const label = role ? `${uname} (${role})` : uname;
     map.set(ak, label);
   }
   return map;
@@ -102,14 +121,44 @@ function pickCallerAddress(args) {
   return null;
 }
 
+/**
+ * Choose the most meaningful "who" address for this event type (proposer vs approver).
+ * @param {string} event
+ * @param {object} args
+ */
+function pickCallerAddressForEvent(event, args) {
+  if (!args || typeof args !== 'object') {
+    return null;
+  }
+  const ev = String(event || '').trim();
+  const pick = (keys) => {
+    for (const k of keys) {
+      if (args[k] != null && String(args[k]).trim() !== '') {
+        return String(args[k]).trim();
+      }
+    }
+    return null;
+  };
+  if (ev === 'ProposalApproved' || ev === 'ProposalRejected') {
+    return pick(['approver', 'proposer', 'creator']) || pickCallerAddress(args);
+  }
+  if (ev === 'ProposalCreated') {
+    return pick(['proposer', 'creator']) || pickCallerAddress(args);
+  }
+  if (ev === 'RecordCreated') {
+    return pick(['creator', 'proposer']) || pickCallerAddress(args);
+  }
+  return pickCallerAddress(args);
+}
+
 /** @param {string} addr */
 function shortAddress(addr) {
-  const s = String(addr || '').trim();
-  if (!/^0x[0-9a-fA-F]{40}$/.test(s)) {
+  const coerced = coerceEvmAddress(addr);
+  if (!coerced) {
+    const s = String(addr || '').trim();
     return s || '—';
   }
-  const lower = s.toLowerCase();
-  return `${lower.slice(0, 6)}…${lower.slice(-4)}`;
+  return `${coerced.slice(0, 6)}…${coerced.slice(-4)}`;
 }
 
 /** @param {string} pid */
@@ -133,10 +182,11 @@ async function enrichAuditItems(items) {
     regAddr && /^0x[0-9a-fA-F]{40}$/i.test(regAddr) && chain.isChainConfigured();
 
   const indexToCase = buildIndexHashToCaseIdMap();
-  const addrToUser = buildAddressToUsernameMap();
+  const addrToDisplay = buildAddressToDisplayMap();
 
   const proposalIndexCache = new Map();
   const proposalReasonCache = new Map();
+  const proposalProposerCache = new Map();
 
   const needsLookup = new Set();
   for (const item of items) {
@@ -145,6 +195,9 @@ async function enrichAuditItems(items) {
       continue;
     }
     if (args.indexHash) {
+      if (args.proposalId != null && String(args.proposalId).trim() !== '') {
+        needsLookup.add(String(args.proposalId).trim());
+      }
       continue;
     }
     if (args.proposalId != null && String(args.proposalId).trim() !== '') {
@@ -165,6 +218,12 @@ async function enrichAuditItems(items) {
           }
           if (p && p.reason != null && String(p.reason).trim() !== '') {
             proposalReasonCache.set(ck, String(p.reason));
+          }
+          if (p && p.proposer) {
+            const pk = coerceEvmAddress(p.proposer);
+            if (pk) {
+              proposalProposerCache.set(ck, pk);
+            }
           }
         } catch {
           proposalIndexCache.set(ck, null);
@@ -194,12 +253,23 @@ async function enrichAuditItems(items) {
     const ih = resolveIndexHashForItem(args);
     const caseId = ih ? indexToCase.get(ih) || null : null;
 
-    const callerAddr = pickCallerAddress(args);
-    const ak = normalizeAddressKey(callerAddr);
-    const callerName = ak && addrToUser.has(ak)
-      ? addrToUser.get(ak)
-      : callerAddr
-        ? shortAddress(callerAddr)
+    let callerAddrRaw = pickCallerAddressForEvent(event, args);
+    if (
+      !callerAddrRaw &&
+      event === 'ProposalExecuted' &&
+      args.proposalId != null &&
+      String(args.proposalId).trim() !== ''
+    ) {
+      const ck = proposalCacheKey(args.proposalId);
+      const fromReg = proposalProposerCache.get(ck);
+      callerAddrRaw = fromReg || null;
+    }
+
+    const ak = callerAddrRaw ? normalizeAddressKey(callerAddrRaw) : null;
+    const callerName = ak && addrToDisplay.has(ak)
+      ? addrToDisplay.get(ak)
+      : callerAddrRaw
+        ? shortAddress(callerAddrRaw)
         : '—';
 
     let rejectReason = '';
@@ -226,4 +296,4 @@ async function enrichAuditItems(items) {
   });
 }
 
-module.exports = { enrichAuditItems, splitEventTs };
+module.exports = { enrichAuditItems, splitEventTs, coerceEvmAddress };
