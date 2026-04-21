@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import pandas as pd
@@ -10,8 +11,34 @@ import streamlit as st
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
 
 
+def _dash(v: Any) -> str:
+    if v is None:
+        return "—"
+    s = str(v).strip()
+    return s if s else "—"
+
+
+def _split_iso_ts(ts_raw: str) -> tuple[str, str]:
+    s = str(ts_raw or "").strip()
+    if not s:
+        return "—", "—"
+    try:
+        if s.endswith("Z"):
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        else:
+            d = datetime.fromisoformat(s)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        d = d.astimezone(timezone.utc)
+        date_part = d.strftime("%Y-%m-%d")
+        time_part = d.strftime("%H:%M:%S Z")
+        return date_part, time_part
+    except ValueError:
+        return s, "—"
+
+
 def _flatten_audit_item(item: Mapping[str, Any]) -> dict[str, Any]:
-    """Map JSONL row to plan columns: ts / event / proposalId / caller / txHash / blockNumber."""
+    """Map audit API row to table columns (gateway may enrich caseId, callerName, etc.)."""
     args = item.get("args") if isinstance(item.get("args"), dict) else {}
     event = str(item.get("event") or "").strip() or "—"
 
@@ -21,26 +48,51 @@ def _flatten_audit_item(item: Mapping[str, Any]) -> dict[str, Any]:
     else:
         proposal_id = str(raw_pid).strip()
 
-    caller = "—"
-    if args.get("creator") is not None:
-        caller = str(args["creator"]).strip() or "—"
-    elif args.get("proposer") is not None:
-        caller = str(args["proposer"]).strip() or "—"
-    elif args.get("approver") is not None:
-        caller = str(args["approver"]).strip() or "—"
+    caller_name = item.get("callerName")
+    if caller_name is None or str(caller_name).strip() == "":
+        caller = "—"
+        if args.get("creator") is not None:
+            caller = str(args["creator"]).strip() or "—"
+        elif args.get("proposer") is not None:
+            caller = str(args["proposer"]).strip() or "—"
+        elif args.get("approver") is not None:
+            caller = str(args["approver"]).strip() or "—"
+    else:
+        caller = str(caller_name).strip()
 
-    ts = str(item.get("ts") or "").strip() or "—"
+    case_id = _dash(item.get("caseId"))
+
+    reject_raw = item.get("rejectReason")
+    if event == "ProposalRejected":
+        reject_reason = _dash(reject_raw)
+    else:
+        reject_reason = "—"
+
+    event_date = _dash(item.get("eventDate"))
+    event_time = _dash(item.get("eventTime"))
+    if event_date == "—" or event_time == "—":
+        ts = str(item.get("ts") or "").strip()
+        if ts:
+            d_part, t_part = _split_iso_ts(ts)
+            if event_date == "—":
+                event_date = d_part
+            if event_time == "—":
+                event_time = t_part
+
     tx_hash = str(item.get("txHash") or "").strip() or "—"
     bn = item.get("blockNumber")
     block_number = bn if bn is not None and str(bn).strip() != "" else "—"
 
     return {
-        "ts": ts,
-        "event": event,
-        "proposalId": proposal_id,
-        "caller": caller,
-        "txHash": tx_hash,
-        "blockNumber": block_number,
+        "Event date": event_date,
+        "Event time": event_time,
+        "Event": event,
+        "Case ID": case_id,
+        "Proposal ID": proposal_id,
+        "Caller": caller,
+        "Reject reason": reject_reason,
+        "Tx hash": tx_hash,
+        "Block": block_number,
     }
 
 

@@ -3,6 +3,7 @@
 const express = require('express');
 const config = require('../config');
 const { readAuditLines } = require('../services/auditLog');
+const { enrichAuditItems } = require('../services/auditEnrichment');
 const requireJudgeSession = require('../middleware/requireJudgeSession');
 
 const router = express.Router();
@@ -11,7 +12,7 @@ const router = express.Router();
  * GET /api/audit — judge session; read CaseRegistry audit JSONL (P8).
  * Query: limit (default 50, max 500), since (ISO date or unix ms)
  */
-router.get('/api/audit', requireJudgeSession, (req, res, next) => {
+router.get('/api/audit', requireJudgeSession, async (req, res, next) => {
   try {
     const limitRaw = req.query.limit;
     const limit =
@@ -21,11 +22,12 @@ router.get('/api/audit', requireJudgeSession, (req, res, next) => {
     const since = req.query.since != null ? String(req.query.since) : null;
 
     const lim = Number.isFinite(limit) && limit > 0 ? limit : 50;
-    const items = readAuditLines({
+    const rawItems = readAuditLines({
       limit: lim,
       since,
       auditLogPath: config.auditLogPath
     });
+    const items = await enrichAuditItems(rawItems);
 
     return res.status(200).json({
       items,

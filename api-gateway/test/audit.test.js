@@ -71,6 +71,12 @@ test('S8.2: GET /api/audit returns newest first, limit & since', async () => {
   assert.strictEqual(res.body.items[0].blockNumber, 120);
   assert.strictEqual(res.body.items[9].blockNumber, 111);
   assert.strictEqual(res.body.limit, 10);
+  const row0 = res.body.items[0];
+  assert.ok('caseId' in row0);
+  assert.ok('callerName' in row0);
+  assert.ok('rejectReason' in row0);
+  assert.ok('eventDate' in row0);
+  assert.ok('eventTime' in row0);
 
   const since = new Date(1050).toISOString();
   const res2 = await agent.get(`/api/audit?since=${encodeURIComponent(since)}&limit=50`).expect(200);
