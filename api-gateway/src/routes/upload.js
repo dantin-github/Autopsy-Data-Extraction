@@ -6,7 +6,10 @@ const integrity = require('../services/integrity');
 const hashOnly = require('../services/hashOnly');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const chain = require('../services/chain');
+const caseRegistryTx = require('../services/caseRegistryTx');
+const userStore = require('../services/userStore');
 const requirePoliceToken = require('../middleware/requirePoliceToken');
+const { logger } = require('../logger');
 
 const router = express.Router();
 
@@ -15,11 +18,24 @@ function toHex0x(hexMaybe) {
   return `0x${s.toLowerCase()}`;
 }
 
+function hexEq(a, b) {
+  const na = String(a || '')
+    .replace(/^0x/i, '')
+    .toLowerCase();
+  const nb = String(b || '')
+    .replace(/^0x/i, '')
+    .toLowerCase();
+  return na.length > 0 && nb.length > 0 && na === nb;
+}
+
 /**
  * POST /api/upload — police + one-time OTP (X-Auth-Token).
  * Body: caseId, examiner, aggregateHash, generatedAt, caseJson (string: full Autopsy export JSON).
  */
 router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
+  if (config.nodeEnv === 'development') {
+    userStore.clearCache();
+  }
   const body = req.body || {};
   const caseIdRaw = body.caseId;
   const examiner = body.examiner;
@@ -154,6 +170,28 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
           e.status = 409;
         }
         return next(e);
+      }
+    }
+
+    if (contractMode && caseRegistryTxHash) {
+      try {
+        const regRh = await caseRegistryTx.getRecordHashOnRegistry(indexHashRaw);
+        const crudRh = await chain.getMirroredRecordHash(
+          indexHashRaw,
+          regRh || toHex0x(recordHashRaw)
+        );
+        if (regRh && crudRh && !hexEq(regRh, crudRh)) {
+          logger.warn(
+            { caseId, indexHash: indexHashRaw },
+            'upload: CRUD record_hash differs from CaseRegistry; aligning CRUD to Registry'
+          );
+          await chain.updateRecord({ indexHash: indexHashRaw, recordHash: regRh });
+        }
+      } catch (reconErr) {
+        logger.warn(
+          { err: reconErr && reconErr.message, caseId },
+          'upload: post-upload CRUD/Registry reconcile failed'
+        );
       }
     }
 

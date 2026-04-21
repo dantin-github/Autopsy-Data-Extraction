@@ -14,6 +14,7 @@
  * Usage (from api-gateway):
  *   node scripts/seed-roles.js
  *   node scripts/seed-roles.js --keystore-only    # write .enc + users.json only (no ABI / chain)
+ *   node scripts/seed-roles.js --ensure           # skip users who already have onchainAddress + .enc
  *
  * Env: USERS_FILE, USERS_EXAMPLE_FILE (override paths; default data/users.json + data/users.example.json)
  */
@@ -114,11 +115,13 @@ function loadExamplePasswordMap() {
 }
 
 function parseArgs(argv) {
-  const out = { keystoreOnly: false, help: false };
+  const out = { keystoreOnly: false, help: false, ensure: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--keystore-only') {
       out.keystoreOnly = true;
+    } else if (a === '--ensure') {
+      out.ensure = true;
     } else if (a === '--help' || a === '-h') {
       out.help = true;
     }
@@ -129,13 +132,15 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log(`Usage: node scripts/seed-roles.js [--keystore-only] [--help]
+    console.log(`Usage: node scripts/seed-roles.js [--keystore-only] [--ensure] [--help]
   --keystore-only   Write data/keystore/*.enc and onchainAddress in users.json only (no chain)
+  --ensure          Skip users that already have a valid onchainAddress and data/keystore/<userId>.enc
   Env: USERS_FILE, USERS_EXAMPLE_FILE — override user list and password source paths`);
     process.exit(0);
   }
 
   const keystoreOnly = args.keystoreOnly;
+  const ensure = args.ensure;
 
   const usersPath = usersFilePath();
   if (!fs.existsSync(usersPath)) {
@@ -185,6 +190,7 @@ async function main() {
   }
 
   const out = [];
+  let ensureSkipped = 0;
 
   for (const row of users) {
     const userId = String(row.userId || '').trim();
@@ -199,9 +205,21 @@ async function main() {
       );
     }
 
+    const encPath = path.join(keystoreDir, `${userId}.enc`);
+    const existingAddr =
+      row.onchainAddress != null ? String(row.onchainAddress).trim().toLowerCase() : '';
+    const alreadyReady =
+      ensure &&
+      /^0x[0-9a-f]{40}$/.test(existingAddr) &&
+      fs.existsSync(encPath);
+    if (alreadyReady) {
+      out.push(row);
+      ensureSkipped += 1;
+      continue;
+    }
+
     const kp = keystore.generateKeypair();
     const enc = keystore.encrypt(kp.privateKey, pwd);
-    const encPath = path.join(keystoreDir, `${userId}.enc`);
     fs.writeFileSync(encPath, `${JSON.stringify(enc, null, 2)}\n`, 'utf8');
     console.error(`Wrote ${path.relative(apiRoot, encPath)} → ${kp.address}`);
 
@@ -238,6 +256,13 @@ async function main() {
     });
   }
 
+  if (ensure && ensureSkipped === users.length) {
+    console.error(
+      'seed-roles --ensure: all users already have keystore + onchainAddress; no changes.'
+    );
+    process.exit(0);
+  }
+
   fs.writeFileSync(usersPath, `${JSON.stringify(out, null, 2)}\n`, 'utf8');
   console.error(`Updated ${usersPath} with onchainAddress for ${out.length} users.`);
 
@@ -247,7 +272,8 @@ async function main() {
         usersFile: usersPath,
         keystoreDir: path.relative(apiRoot, keystoreDir),
         contract: keystoreOnly ? null : contractAddr,
-        keystoreOnly
+        keystoreOnly,
+        ensure
       },
       null,
       2

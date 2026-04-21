@@ -8,6 +8,7 @@ All user-visible error strings are English (see .cursor/rules/english-only-ui.md
 from __future__ import annotations
 
 from typing import Any, Mapping, MutableMapping, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -132,6 +133,12 @@ class GatewayClient:
         pid = str(proposal_id).strip()
         return self._request_json("GET", f"/api/modify/{pid}")
 
+    def get_modify_pending_for_case(self, case_id: str) -> dict[str, Any]:
+        """GET /api/modify/pending-for-case/:caseId — judge session; chain-Pending proposals."""
+        cid = str(case_id).strip()
+        enc = quote(cid, safe="")
+        return self._request_json("GET", f"/api/modify/pending-for-case/{enc}")
+
     def post_approve(self, proposal_id: str, signing_password: str) -> dict[str, Any]:
         """POST /api/modify/approve — judge session."""
         return self._request_json(
@@ -155,6 +162,14 @@ class GatewayClient:
                 "signingPassword": signing_password,
                 "reason": reason,
             },
+        )
+
+    def post_sync_crud_mirror(self, case_id: str) -> dict[str, Any]:
+        """POST /api/modify/sync-crud-mirror — police session; align t_case_hash with CaseRegistry."""
+        return self._request_json(
+            "POST",
+            "/api/modify/sync-crud-mirror",
+            json_body={"caseId": str(case_id).strip()},
         )
 
     def get_audit(

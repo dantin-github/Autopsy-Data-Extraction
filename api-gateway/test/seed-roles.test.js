@@ -102,3 +102,75 @@ test('S5.3: seed-roles --keystore-only writes enc + onchainAddress', () => {
   }
   fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+test('S5.3: seed-roles --ensure --keystore-only is a no-op when user already complete', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-roles-ensure-'));
+  const uid = 'u-seed-roles-ensure';
+  const passwordPlain = 'ensure-pass';
+
+  const usersPath = path.join(tmp, 'users.json');
+  const examplePath = path.join(tmp, 'users.example.json');
+
+  fs.writeFileSync(
+    usersPath,
+    JSON.stringify(
+      [
+        {
+          userId: uid,
+          username: 't2',
+          role: 'judge',
+          passwordHash: '$2b$12$dummy'
+        }
+      ],
+      null,
+      2
+    ),
+    'utf8'
+  );
+  fs.writeFileSync(
+    examplePath,
+    JSON.stringify(
+      [{ userId: uid, username: 't2', role: 'judge', passwordPlain }],
+      null,
+      2
+    ),
+    'utf8'
+  );
+
+  const encPath = path.join(apiRoot, 'data', 'keystore', `${uid}.enc`);
+  try {
+    if (fs.existsSync(encPath)) {
+      fs.unlinkSync(encPath);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+
+  const r1 = spawnSync(process.execPath, [scriptPath, '--keystore-only'], {
+    cwd: apiRoot,
+    encoding: 'utf8',
+    env: { ...process.env, USERS_FILE: usersPath, USERS_EXAMPLE_FILE: examplePath }
+  });
+  assert.strictEqual(r1.status, 0, r1.stderr || r1.stdout);
+  const addrAfterFirst = JSON.parse(fs.readFileSync(usersPath, 'utf8'))[0].onchainAddress;
+
+  const r2 = spawnSync(process.execPath, [scriptPath, '--ensure', '--keystore-only'], {
+    cwd: apiRoot,
+    encoding: 'utf8',
+    env: { ...process.env, USERS_FILE: usersPath, USERS_EXAMPLE_FILE: examplePath }
+  });
+  assert.strictEqual(r2.status, 0, r2.stderr || r2.stdout);
+  assert.ok(
+    String(r2.stderr || '').includes('no changes'),
+    'expected no changes on stderr'
+  );
+  const addrAfterSecond = JSON.parse(fs.readFileSync(usersPath, 'utf8'))[0].onchainAddress;
+  assert.strictEqual(addrAfterSecond, addrAfterFirst);
+
+  try {
+    fs.unlinkSync(encPath);
+  } catch (_) {
+    /* ignore */
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
+});

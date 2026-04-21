@@ -1,10 +1,12 @@
 'use strict';
 
 const express = require('express');
+const config = require('../config');
 const hashOnly = require('../services/hashOnly');
 const integrity = require('../services/integrity');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const chain = require('../services/chain');
+const caseRegistryTx = require('../services/caseRegistryTx');
 const requireJudgeSession = require('../middleware/requireJudgeSession');
 
 const router = express.Router();
@@ -26,8 +28,10 @@ function hexEq(a, b) {
 
 /**
  * POST /api/query — judge session: load local record, recompute hashes, verify aggregate on
- * case_json, compare local record_hash to chain (t_case_hash). Response shape aligned with
- * api_gateway_dev_plan §4.3 / S3.5.
+ * case_json, compare local record_hash to on-chain truth. When CASE_REGISTRY_ADDR is set,
+ * CaseRegistry.getRecordHash is authoritative (same mapping updated by propose/execute);
+ * t_case_hash (CRUD) is a mirror and may lag after execute if CRUD update fails — integrity
+ * uses the registry first so judicial workflow does not produce false mismatch.
  */
 router.post('/api/query', requireJudgeSession, async (req, res, next) => {
   const body = req.body || {};
@@ -72,16 +76,35 @@ router.post('/api/query', requireJudgeSession, async (req, res, next) => {
   const indexHashRaw = hashOnly.computeIndexHash(caseId);
 
   try {
-    /** Canonical on-chain row for this case (indexed by `index_hash`), including S3.6 tamper compare. */
-    const selIdx = await chain.selectRecordByIndexHash(indexHashRaw);
-    const chainRh = selIdx.recordHash != null ? String(selIdx.recordHash) : null;
     const localRecordHex = toHex0x(recordHashRaw);
-    const recordHashMatch = Boolean(chainRh && hexEq(chainRh, localRecordHex));
+
+    let registryRh = null;
+    const regAddr = String(config.caseRegistryAddr || '').trim();
+    if (regAddr && /^0x[0-9a-fA-F]{40}$/i.test(regAddr)) {
+      registryRh = await caseRegistryTx.getRecordHashOnRegistry(indexHashRaw);
+    }
+
+    const canonicalHint = registryRh || localRecordHex;
+    const chainRh = await chain.getMirroredRecordHash(indexHashRaw, canonicalHint);
+
+    /** Prefer CaseRegistry when configured and has a row — avoids false negative after execute. */
+    const canonicalRh = registryRh || chainRh;
+    const recordHashMatch = Boolean(canonicalRh && hexEq(canonicalRh, localRecordHex));
+    const crudRegistryOutOfSync =
+      registryRh != null &&
+      chainRh != null &&
+      !hexEq(registryRh, chainRh);
 
     const chainOut = {
       indexHash: toHex0x(indexHashRaw),
-      recordHash: chainRh
+      recordHash: canonicalRh
     };
+    if (chainRh != null && chainRh !== '') {
+      chainOut.recordHashCrud = chainRh;
+    }
+    if (registryRh != null && registryRh !== '') {
+      chainOut.recordHashRegistry = registryRh;
+    }
     const crudTxRaw =
       recordObj && recordObj.crud_tx_hash != null
         ? String(recordObj.crud_tx_hash).trim()
@@ -105,7 +128,10 @@ router.post('/api/query', requireJudgeSession, async (req, res, next) => {
         recordHashMatch,
         aggregateHashValid,
         recordHashLocal: localRecordHex,
-        recordHashOnChain: chainRh
+        recordHashOnChain: canonicalRh,
+        recordHashOnChainCrud: chainRh,
+        recordHashOnChainRegistry: registryRh,
+        crudRegistryOutOfSync
       }
     });
   } catch (e) {

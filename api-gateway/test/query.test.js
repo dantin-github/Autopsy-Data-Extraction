@@ -33,6 +33,7 @@ function buildVerifiedCaseJson(caseId) {
 
 let tmpRecordStorePath;
 let origSelectByIndex;
+let origSelectRecord;
 
 before(() => {
   const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'seed-users.js')], {
@@ -52,7 +53,9 @@ before(() => {
 
   const chain = require('../src/services/chain');
   origSelectByIndex = chain.selectRecordByIndexHash;
+  origSelectRecord = chain.selectRecord;
   chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
+  chain.selectRecord = async () => ({ recordHash: null, rows: [] });
 
   delete require.cache[require.resolve('../src/app')];
   delete require.cache[require.resolve('../src/routes/query')];
@@ -61,6 +64,7 @@ before(() => {
 after(() => {
   const chain = require('../src/services/chain');
   chain.selectRecordByIndexHash = origSelectByIndex;
+  chain.selectRecord = origSelectRecord;
   delete process.env.RECORD_STORE_PATH;
   try {
     fs.rmSync(path.dirname(tmpRecordStorePath), { recursive: true, force: true });
@@ -232,7 +236,7 @@ test('S3.6 tampered private store: recordHashMatch false; chain vs local hashes 
   chain.selectRecordByIndexHash = async () => ({
     indexHash: `0x${indexHex}`,
     recordHash: `0x${expectedRh}`,
-    rows: []
+    rows: [{ index_hash: `0x${indexHex}`, record_hash: `0x${expectedRh}` }]
   });
   delete require.cache[require.resolve('../src/routes/query')];
   delete require.cache[require.resolve('../src/app')];
@@ -286,5 +290,150 @@ test('POST /api/query 503 when chain not configured', async () => {
   await agent.post('/api/query').send({ caseId }).expect(503);
 
   chain.selectRecordByIndexHash = prev;
+  delete require.cache[require.resolve('../src/app')];
+});
+
+test('POST /api/query prefers CaseRegistry hash when CRUD mirror is stale', async () => {
+  const prevAddr = process.env.CASE_REGISTRY_ADDR;
+  process.env.CASE_REGISTRY_ADDR = `0x${'12'.repeat(20)}`;
+  delete require.cache[require.resolve('../src/config')];
+
+  const caseId = `Q-REG-${Date.now()}`;
+  const caseJsonStr = buildVerifiedCaseJson(caseId);
+  const aggFromJson = JSON.parse(caseJsonStr).aggregateHash;
+
+  const { getDefaultRecordStore } = require('../src/services/recordStore');
+  getDefaultRecordStore().save(caseId, caseJsonStr, aggFromJson, 'police', '2026-01-15T12:00:00.000Z');
+
+  const full = getDefaultRecordStore().get(caseId);
+  const localRh = hashOnly.computeRecordHashFromJson(full);
+  const staleRh = `${'f'.repeat(64)}`;
+  const indexHex = hashOnly.computeIndexHash(caseId);
+
+  const chain = require('../src/services/chain');
+  chain.selectRecordByIndexHash = async () => ({
+    indexHash: `0x${indexHex}`,
+    recordHash: `0x${staleRh}`,
+    rows: [{ index_hash: `0x${indexHex}`, record_hash: `0x${staleRh}` }]
+  });
+
+  const caseRegistryTx = require('../src/services/caseRegistryTx');
+  const origReg = caseRegistryTx.getRecordHashOnRegistry;
+  caseRegistryTx.getRecordHashOnRegistry = async () => `0x${localRh}`;
+
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const agent = await judgeAgent(app);
+
+  const res = await agent.post('/api/query').send({ caseId }).expect(200);
+  assert.strictEqual(res.body.integrity.recordHashMatch, true);
+  assert.strictEqual(res.body.integrity.crudRegistryOutOfSync, true);
+  assert.strictEqual(
+    String(res.body.integrity.recordHashOnChain || '').toLowerCase(),
+    `0x${localRh}`.toLowerCase()
+  );
+
+  caseRegistryTx.getRecordHashOnRegistry = origReg;
+  chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
+  if (prevAddr === undefined) {
+    delete process.env.CASE_REGISTRY_ADDR;
+  } else {
+    process.env.CASE_REGISTRY_ADDR = prevAddr;
+  }
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+});
+
+test('POST /api/query skips CRUD rows with malformed hex (no 500)', async () => {
+  const caseId = `Q-BADHEX-${Date.now()}`;
+  const caseJsonStr = buildVerifiedCaseJson(caseId);
+  const aggFromJson = JSON.parse(caseJsonStr).aggregateHash;
+
+  const { getDefaultRecordStore } = require('../src/services/recordStore');
+  getDefaultRecordStore().save(caseId, caseJsonStr, aggFromJson, 'police', '2026-01-15T12:00:00.000Z');
+
+  const full = getDefaultRecordStore().get(caseId);
+  const expectedRh = hashOnly.computeRecordHashFromJson(full);
+  const indexHex = hashOnly.computeIndexHash(caseId);
+
+  const chain = require('../src/services/chain');
+  chain.selectRecordByIndexHash = async () => ({
+    rows: [
+      { index_hash: '0xabc', record_hash: `0x${expectedRh}` },
+      { index_hash: `0x${indexHex}`, record_hash: `0x${expectedRh}` }
+    ]
+  });
+
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const agent = await judgeAgent(app);
+
+  const res = await agent.post('/api/query').send({ caseId }).expect(200);
+  assert.strictEqual(res.body.integrity.recordHashMatch, true);
+
+  chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
+  delete require.cache[require.resolve('../src/app')];
+});
+
+test('POST /api/query ignores CRUD row when index_hash does not match (PK select quirk)', async () => {
+  const prevAddr = process.env.CASE_REGISTRY_ADDR;
+  process.env.CASE_REGISTRY_ADDR = `0x${'ab'.repeat(20)}`;
+  delete require.cache[require.resolve('../src/config')];
+
+  const caseId = `Q-PKQUIRK-${Date.now()}`;
+  const caseJsonStr = buildVerifiedCaseJson(caseId);
+  const aggFromJson = JSON.parse(caseJsonStr).aggregateHash;
+
+  const { getDefaultRecordStore } = require('../src/services/recordStore');
+  getDefaultRecordStore().save(caseId, caseJsonStr, aggFromJson, 'police', '2026-01-15T12:00:00.000Z');
+
+  const full = getDefaultRecordStore().get(caseId);
+  const localRh = hashOnly.computeRecordHashFromJson(full);
+  const indexHex = hashOnly.computeIndexHash(caseId);
+
+  const chain = require('../src/services/chain');
+  const wrongIdx = `${'bb'.repeat(32)}`;
+  chain.selectRecordByIndexHash = async () => ({
+    rows: [{ index_hash: `0x${wrongIdx}`, record_hash: `0x${'cc'.repeat(32)}` }]
+  });
+  chain.selectRecord = async (rh) => {
+    assert.strictEqual(String(rh).toLowerCase(), `0x${localRh}`.toLowerCase());
+    return {
+      rows: [{ index_hash: `0x${indexHex}`, record_hash: `0x${localRh}` }]
+    };
+  };
+
+  const caseRegistryTx = require('../src/services/caseRegistryTx');
+  const origReg = caseRegistryTx.getRecordHashOnRegistry;
+  caseRegistryTx.getRecordHashOnRegistry = async () => `0x${localRh}`;
+
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const agent = await judgeAgent(app);
+
+  const res = await agent.post('/api/query').send({ caseId }).expect(200);
+  assert.strictEqual(res.body.integrity.recordHashMatch, true);
+  assert.strictEqual(res.body.integrity.crudRegistryOutOfSync, false);
+
+  caseRegistryTx.getRecordHashOnRegistry = origReg;
+  chain.selectRecordByIndexHash = async () => ({ indexHash: null, recordHash: null, rows: [] });
+  chain.selectRecord = async () => ({ recordHash: null, rows: [] });
+  if (prevAddr === undefined) {
+    delete process.env.CASE_REGISTRY_ADDR;
+  } else {
+    process.env.CASE_REGISTRY_ADDR = prevAddr;
+  }
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/routes/query')];
   delete require.cache[require.resolve('../src/app')];
 });

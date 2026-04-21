@@ -135,6 +135,15 @@ const eventListenerEnabled = !['0', 'false', 'no'].includes(
   String(process.env.ENABLE_EVENT_LISTENER || '1').toLowerCase()
 );
 
+/** Run `scripts/seed-roles.js --ensure` before listen so dev/test users get keystore + onchainAddress without a manual npm script. Off by default in production unless AUTO_SEED_ROLES=1. */
+const autoSeedRolesEnv = process.env.AUTO_SEED_ROLES;
+let autoSeedRoles;
+if (autoSeedRolesEnv != null && String(autoSeedRolesEnv).trim() !== '') {
+  autoSeedRoles = ['1', 'true', 'yes'].includes(String(autoSeedRolesEnv).toLowerCase());
+} else {
+  autoSeedRoles = nodeEnv !== 'production';
+}
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -160,5 +169,6 @@ module.exports = {
   auditLogPath,
   auditStatePath,
   eventListenerPollMs,
-  eventListenerEnabled
+  eventListenerEnabled,
+  autoSeedRoles
 };

@@ -214,6 +214,8 @@ The repository includes **`api-gateway/`** — an HTTP gateway that:
 
 **Dissertation evidence (Phase 9):** **`docs/evidence/`** — ABI copy, CSVs of negative tx hashes, HTTP samples, **chapter → evidence** mapping (`chapter-evidence-mapping.md`), WeBASE screenshot checklist (`docs/evidence/webase/README.md`). Regenerate the ABI copy after contract changes (see `docs/evidence/README.md`).
 
+**Implementation log (CN):** **`docs/project-progress.md`** — incident notes (e.g. Judge Query CRUD vs CaseRegistry alignment, `/api/query` hardening).
+
 ---
 
 ## License

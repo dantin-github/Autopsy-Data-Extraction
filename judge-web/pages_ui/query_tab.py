@@ -78,11 +78,18 @@ def _render_query_result_blocks(data: Mapping[str, Any]) -> None:
     rh_match = integrity.get("recordHashMatch")
     agg_ok = integrity.get("aggregateHashValid")
     if rh_match is True:
-        st.success("Record hash matches the on-chain row.")
+        st.success("Record hash matches the on-chain record (CaseRegistry when configured).")
     elif rh_match is False:
-        st.error("Record hash does **not** match the on-chain row.")
+        st.error("Record hash does **not** match the on-chain record.")
     else:
         st.warning("Record hash match status is unknown.")
+    if integrity.get("crudRegistryOutOfSync"):
+        st.info(
+            "The **t_case_hash** (CRUD) row differs from **CaseRegistry** for this index. "
+            "Verification uses CaseRegistry as the source of truth when CRUD lags. "
+            "To align the mirror, call **POST /api/modify/sync-crud-mirror** with a **police** "
+            "session and body `{\"caseId\": \"…\"}` (same as after execute when `crudSyncHint` is returned)."
+        )
     if agg_ok is True:
         st.success("Aggregate hash verification passed.")
     elif agg_ok is False:
@@ -92,7 +99,13 @@ def _render_query_result_blocks(data: Mapping[str, Any]) -> None:
 
     st.markdown("##### On-chain records")
     _labeled_full_width_line("Index hash", chain.get("indexHash"))
-    _labeled_full_width_line("Record hash", chain.get("recordHash"))
+    _labeled_full_width_line("Record hash (verification)", chain.get("recordHash"))
+    if chain.get("recordHashCrud") and chain.get("recordHashRegistry"):
+        crud_v = str(chain.get("recordHashCrud") or "").strip().lower()
+        reg_v = str(chain.get("recordHashRegistry") or "").strip().lower()
+        if crud_v and reg_v and crud_v != reg_v:
+            _labeled_full_width_line("Record hash (CRUD mirror)", chain.get("recordHashCrud"))
+            _labeled_full_width_line("Record hash (CaseRegistry)", chain.get("recordHashRegistry"))
     _labeled_full_width_line(
         "Transaction hash (CRUD insert)",
         chain.get("txHash"),

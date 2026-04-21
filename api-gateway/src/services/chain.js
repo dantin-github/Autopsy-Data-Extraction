@@ -80,6 +80,29 @@ function normalizeChainHashHex(name, value) {
 }
 
 /**
+ * Same rules as {@link normalizeChainHashHex} but returns null for bad/empty values
+ * (FISCO CRUD rows occasionally return malformed strings — callers should skip the row).
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+function tryNormalizeChainHashHex(value) {
+  if (value == null) {
+    return null;
+  }
+  let s = String(value).trim();
+  if (s === '') {
+    return null;
+  }
+  if (s.startsWith('0x') || s.startsWith('0X')) {
+    s = s.slice(2);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(s) || s.length % 2 !== 0) {
+    return null;
+  }
+  return `0x${s.toLowerCase()}`;
+}
+
+/**
  * Insert one row into `t_case_hash` (primary key `index_hash`, value `record_hash`).
  * Returns the transaction hash from the Channel receipt (SDK `insert()` alone does not expose it).
  *
@@ -239,6 +262,57 @@ async function selectRecordByIndexHash(indexHash) {
 }
 
 /**
+ * Reliable read of `record_hash` for a case index. FISCO 2.x CRUD `select` with
+ * `Condition.eq` on the primary key is not always trustworthy; we only accept a row
+ * whose `index_hash` matches, otherwise fall back to `select` by `record_hash`
+ * (value column), which is reliable per team notes in `selectRecord` above.
+ *
+ * @param {string} indexHashRaw
+ * @param {string | null | undefined} recordHashCanonicalHex `0x`+64 preferred; registry hash if set, else local
+ * @returns {Promise<string|null>} normalized `0x`+64 lowercase or null
+ */
+async function getMirroredRecordHash(indexHashRaw, recordHashCanonicalHex) {
+  const { selectRecordByIndexHash: byIndex, selectRecord: byRecordHash } = module.exports;
+  const wantIdx = normalizeChainHashHex('indexHash', indexHashRaw);
+  const selIdx = await byIndex(indexHashRaw);
+  for (const row of selIdx.rows || []) {
+    if (!row) {
+      continue;
+    }
+    const rowIdx = tryNormalizeChainHashHex(row.index_hash);
+    if (rowIdx == null || rowIdx !== wantIdx) {
+      continue;
+    }
+    const rowRh = tryNormalizeChainHashHex(row.record_hash);
+    if (rowRh == null) {
+      continue;
+    }
+    return rowRh;
+  }
+
+  const hint = recordHashCanonicalHex;
+  if (hint == null || String(hint).trim() === '') {
+    return null;
+  }
+  const selVal = await byRecordHash(hint);
+  for (const row of selVal.rows || []) {
+    if (!row) {
+      continue;
+    }
+    const rowIdx = tryNormalizeChainHashHex(row.index_hash);
+    if (rowIdx == null || rowIdx !== wantIdx) {
+      continue;
+    }
+    const rowRh = tryNormalizeChainHashHex(row.record_hash);
+    if (rowRh == null) {
+      continue;
+    }
+    return rowRh;
+  }
+  return null;
+}
+
+/**
  * CaseRegistry.createRecord via police user keystore (S5.4 / S6.1). Lazy-loads `caseRegistryTx` to avoid circular require with that module.
  *
  * @param {{ userId: string, signingPassword: string, indexHashHex: string, recordHashHex: string }} opts
@@ -273,5 +347,6 @@ module.exports = {
   updateRecord,
   createCaseRegistryRecordFromKeystore,
   selectRecord,
-  selectRecordByIndexHash
+  selectRecordByIndexHash,
+  getMirroredRecordHash
 };

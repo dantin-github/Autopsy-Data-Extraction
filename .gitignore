@@ -67,6 +67,9 @@ api-gateway/package/
 # Local HTTP session / cookies (never commit)
 judge-cookies.txt
 
+# Ephemeral E2E OTP payload (expires; do not commit)
+api-gateway/e2e-police-otp-body.json
+
 # -------------------------------------------------------
 # IDE / OS artefacts
 # -------------------------------------------------------

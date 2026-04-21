@@ -276,6 +276,97 @@ test('S7.1: propose + proposalCreated + judge GET returns Pending', async () => 
   assert.strictEqual(g.body.decidedAt, '0');
 });
 
+test('GET /api/modify/pending-for-case without judge session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app).get('/api/modify/pending-for-case/case-1').expect(401);
+});
+
+test('GET /api/modify/pending-for-case lists Pending proposals for case', async () => {
+  const caseId = `PENDING-BY-CASE-${Date.now()}`;
+  const caseJsonInitial = buildVerifiedCaseJson(caseId, 'v1');
+  const aggInitial = JSON.parse(caseJsonInitial).aggregateHash;
+
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJsonInitial, aggInitial, 'police', '2026-01-15T12:00:00.000Z');
+
+  const caseJsonNew = buildVerifiedCaseJson(caseId, 'v2');
+  const aggNew = JSON.parse(caseJsonNew).aggregateHash;
+  assert.ok(integrity.verify(caseJsonNew));
+
+  const fixedProposalId = `0x${'de'.repeat(32)}`;
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const policeAgent = await withPoliceSession(app);
+
+  await policeAgent
+    .post('/api/modify/propose')
+    .send({
+      caseId,
+      caseJson: caseJsonNew,
+      aggregateHash: aggNew,
+      examiner: 'police',
+      generatedAt: '2026-02-01T12:00:00.000Z',
+      signingPassword: 'irrelevant-mocked',
+      proposalId: fixedProposalId,
+      reason: 'pending-for-case test'
+    })
+    .expect(200);
+
+  const judgeAgent = await withJudgeSession(app);
+  const res = await judgeAgent
+    .get(`/api/modify/pending-for-case/${encodeURIComponent(caseId)}`)
+    .expect(200)
+    .expect('Content-Type', /json/);
+
+  assert.strictEqual(res.body.caseId, caseId);
+  assert.strictEqual(res.body.pending.length, 1);
+  assert.strictEqual(res.body.pending[0].proposalId, fixedProposalId);
+  assert.strictEqual(res.body.pending[0].status, 'Pending');
+  assert.ok(String(res.body.pending[0].pendingKey || '').includes('::pending-'));
+});
+
+test('GET /api/modify/pending-for-case accepts caseId= prefix in path param', async () => {
+  const caseId = `PREFIX-${Date.now()}`;
+  const caseJsonInitial = buildVerifiedCaseJson(caseId, 'v1');
+  const aggInitial = JSON.parse(caseJsonInitial).aggregateHash;
+
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJsonInitial, aggInitial, 'police', '2026-01-15T12:00:00.000Z');
+
+  const caseJsonNew = buildVerifiedCaseJson(caseId, 'v2');
+  const aggNew = JSON.parse(caseJsonNew).aggregateHash;
+  const fixedProposalId = `0x${'c0'.repeat(32)}`;
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const policeAgent = await withPoliceSession(app);
+  await policeAgent
+    .post('/api/modify/propose')
+    .send({
+      caseId,
+      caseJson: caseJsonNew,
+      aggregateHash: aggNew,
+      examiner: 'police',
+      generatedAt: '2026-02-01T12:00:00.000Z',
+      signingPassword: 'irrelevant-mocked',
+      proposalId: fixedProposalId,
+      reason: 'prefix test'
+    })
+    .expect(200);
+
+  const judgeAgent = await withJudgeSession(app);
+  const bogus = `caseId=${caseId}`;
+  const res = await judgeAgent
+    .get(`/api/modify/pending-for-case/${encodeURIComponent(bogus)}`)
+    .expect(200);
+
+  assert.strictEqual(res.body.caseId, caseId);
+  assert.strictEqual(res.body.pending.length, 1);
+  assert.strictEqual(res.body.pending[0].proposalId, fixedProposalId);
+});
+
 test('GET /api/modify/:id without session → 401', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();
@@ -429,4 +520,102 @@ test('GET /api/modify/:id 404 when proposal empty on chain', async () => {
     caseRegistryTx.getProposalFromRegistry = prev;
     delete require.cache[require.resolve('../src/app')];
   }
+});
+
+test('POST /api/modify/sync-crud-mirror without police session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app)
+    .post('/api/modify/sync-crud-mirror')
+    .send({ caseId: 'x' })
+    .expect(401);
+});
+
+test('POST /api/modify/sync-crud-mirror judge session → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const judgeAgent = await withJudgeSession(app);
+  await judgeAgent
+    .post('/api/modify/sync-crud-mirror')
+    .send({ caseId: 'x' })
+    .expect(401);
+});
+
+test('POST /api/modify/sync-crud-mirror police writes Registry hash to CRUD', async () => {
+  const caseId = `SYNC-CRUD-${Date.now()}`;
+  const caseJson = buildVerifiedCaseJson(caseId, 'sync');
+  const agg = JSON.parse(caseJson).aggregateHash;
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJson, agg, 'police', '2026-01-15T12:00:00.000Z');
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const policeAgent = await withPoliceSession(app);
+  const res = await policeAgent
+    .post('/api/modify/sync-crud-mirror')
+    .send({ caseId })
+    .expect(200)
+    .expect('Content-Type', /json/);
+
+  assert.strictEqual(res.body.caseId, caseId);
+  assert.ok(res.body.recordHash);
+  assert.strictEqual(res.body.crudTxHash, `0x${'22'.repeat(32)}`);
+  assert.strictEqual(res.body.crudBlockNumber, 100);
+});
+
+test('execute: CRUD updateRecord retries on transient failure', async () => {
+  const chain = require('../src/services/chain');
+  const prevUpdate = chain.updateRecord;
+  let calls = 0;
+  chain.updateRecord = async () => {
+    calls += 1;
+    if (calls < 3) {
+      throw new Error('temporary RPC failure');
+    }
+    return { txHash: `0x${'99'.repeat(32)}`, affected: 1, blockNumber: 888 };
+  };
+
+  delete require.cache[require.resolve('../src/routes/modify')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+
+  const caseId = `MODIFY-RETRY-${Date.now()}`;
+  const pid = `0x${'de'.repeat(32)}`;
+  const caseJsonInitial = buildVerifiedCaseJson(caseId, 'v0');
+  const agg0 = JSON.parse(caseJsonInitial).aggregateHash;
+
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJsonInitial, agg0, 'police', '2026-01-15T12:00:00.000Z');
+
+  const caseJsonNew = buildVerifiedCaseJson(caseId, 'v1');
+  const agg1 = JSON.parse(caseJsonNew).aggregateHash;
+  const pendingFull = JSON.stringify({
+    case_id: caseId,
+    case_json: String(caseJsonNew),
+    aggregate_hash: String(agg1),
+    examiner: 'police',
+    created_at: '2026-02-01T12:00:00.000Z'
+  });
+  const pkey = `${caseId}::pending-${pid}`;
+  rs.save(pkey, pendingFull);
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const policeAgent = await withPoliceSession(app);
+
+  const res = await policeAgent
+    .post('/api/modify/execute')
+    .send({ proposalId: pid, signingPassword: 'irrelevant-mocked' })
+    .expect(200);
+
+  assert.strictEqual(calls, 3);
+  assert.strictEqual(res.body.crudTxHash, `0x${'99'.repeat(32)}`);
+  assert.strictEqual(res.body.crudBlockNumber, 888);
+  assert.ok(!res.body.crudUpdateWarning);
+
+  chain.updateRecord = prevUpdate;
+  delete require.cache[require.resolve('../src/routes/modify')];
+  delete require.cache[require.resolve('../src/app')];
 });

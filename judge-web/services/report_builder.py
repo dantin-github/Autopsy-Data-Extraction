@@ -333,7 +333,7 @@ def build_verification_report_pdf(
     agg = integrity.get("aggregateHashValid")
     rows_i = [
         [
-            _integrity_line("Record hash matches on-chain row:", rh),
+            _integrity_line("Record hash matches on-chain record (CaseRegistry when set):", rh),
         ],
         [
             _integrity_line("Aggregate hash verification:", agg),

@@ -196,8 +196,11 @@ Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from
 
 1. **警察会话**（与 **`propose`** 同一账号：`POST /login` → `POST /api/auth/police-otp`）。
 2. **`POST /api/modify/execute`** — JSON：**`proposalId`**、**`signingPassword`**（`seed-roles` 对应警察 keystore）。
-3. 成功：响应 **`txHash`**、**`blockNumber`**、**`caseId`**、**`pendingKey`**；可选 **`proposalExecuted`**（事件 **`ProposalExecuted`**）；以及 **`crudTxHash` / `crudBlockNumber`**（表 **`t_case_hash`** 与本地新记录对齐）。链上 **`CaseRegistry`** 的 **`record_hash`** 已更新；本地 **`caseId`** 主键由待定稿覆盖，**`pending`** 键删除。若 CRUD 更新失败，响应含 **`crudUpdateWarning`**（合约与本地已提交）。
-4. **`POST /api/query`**（法官）：在 CRUD 更新成功时，应对 **`recordHashMatch: true`**。
+3. 成功：响应 **`txHash`**、**`blockNumber`**、**`caseId`**、**`pendingKey`**；可选 **`proposalExecuted`**（事件 **`ProposalExecuted`**）；以及 **`crudTxHash` / `crudBlockNumber`**（表 **`t_case_hash`** 与本地新记录对齐）。网关对 **`t_case_hash`** 的 **`update`** 会 **自动重试**（间隔约 0 / 250 / 750 / 1500 ms）。链上 **`CaseRegistry`** 的 **`record_hash`** 已更新；本地 **`caseId`** 主键由待定稿覆盖，**`pending`** 键删除。若 CRUD 在重试后仍失败，响应含 **`crudUpdateWarning`**、**`crudSyncHint`**（合约与本地已提交）。
+4. **补偿**：警察会话 **`POST /api/modify/sync-crud-mirror`**，JSON **`{"caseId":"<caseId>"}`**，按 **`CaseRegistry.getRecordHash`** 再写 **`t_case_hash`**（与 execute 后手动对齐镜像）。
+5. **`POST /api/query`**（法官）：**`recordHashMatch`** 以 **CaseRegistry** 为准（CRUD 滞后时仍可与本地一致）；若 **`integrity.crudRegistryOutOfSync`** 为 true，应执行上一步或排查链。
+
+说明：部分 FISCO 版本下 CRUD 按主键 **`index_hash`** 的 **`select`** 不可靠；网关使用 **`getMirroredRecordHash`**（校验行上 **`index_hash`**、必要时按 **`record_hash`** 列回查）并对链上返回的畸形 hex **跳过**该行，减少误报蓝条与 **`/api/query` 500**。上传成功后在合约模式下会对 Registry/CRUD 做一次对账写入。过程记录见仓库 **`docs/project-progress.md`**。
 
 若本地无待定条目 → **400** `PENDING_SNAPSHOT_NOT_FOUND`。合约侧：**非 Approved**、**非原 proposer**、或链上 **`record_hash` 已变** → **4xx**（见 `EXECUTE_FAILED`）。
 

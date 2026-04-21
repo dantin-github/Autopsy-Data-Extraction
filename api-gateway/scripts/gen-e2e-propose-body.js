@@ -5,6 +5,9 @@
  * Requires e2e-query-body.json from gen-e2e-upload-body.js and the same RECORD_STORE_PATH as the gateway.
  *
  * Usage (from api-gateway): node scripts/gen-e2e-propose-body.js
+ *
+ * Second proposal for the same caseId: use a different note so newRecordHash changes, e.g.:
+ *   set PROPOSE_NOTE=v3-second-proposal   (PowerShell: $env:PROPOSE_NOTE='v3-second-proposal')
  */
 
 const fs = require('fs');
@@ -37,7 +40,7 @@ if (existing == null) {
   process.exit(1);
 }
 
-const note = 'v2-e2e-modify';
+const note = process.env.PROPOSE_NOTE || 'v2-e2e-modify';
 const skeleton = JSON.stringify({
   caseId,
   examiner: 'officer1',
@@ -63,5 +66,5 @@ const body = {
 };
 
 fs.writeFileSync(path.join(root, 'e2e-propose-body.json'), `${JSON.stringify(body, null, 2)}\n`, 'utf8');
-console.log(`Wrote e2e-propose-body.json for caseId=${caseId}`);
+console.log(`Wrote e2e-propose-body.json for caseId=${caseId} (aggregateHashNote=${note})`);
 console.log(`record store: ${rs.storePath}`);
