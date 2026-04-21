@@ -19,23 +19,48 @@ function serializeArgValue(v) {
 }
 
 /**
- * Build a plain object for audit JSONL from `Interface.parseLog` output (`ev`).
- * ethers v5 `ev.args` is a `Result`: numeric indices hold values; `Object.keys(args)`
- * is often only ["0","1",…], so iterating ABI input names is required.
+ * Build a plain object for audit JSONL from `Interface.parseLog` output.
  *
- * @param {{ args?: unknown, fragment?: { inputs?: { name?: string }[] } }} | null | undefined} ev
+ * **ethers v4 / legacy v5** (`node_modules/ethers` here): `LogDescription` uses
+ * **`ev.values`** (not `ev.args`) and has **no `ev.fragment`**. Input names come from
+ * **`iface.events[ev.signature].inputs`**.
+ *
+ * **Newer ethers v5/v6**: may expose `ev.args` + `ev.fragment.inputs`; we support both.
+ *
+ * @param {object} iface `ethers.utils.Interface` instance
+ * @param {object | null | undefined} ev
  * @returns {Record<string, unknown>}
  */
-function serializeEventArgs(ev) {
-  const args = ev && ev.args;
-  const inputs = ev && ev.fragment && ev.fragment.inputs;
-  if (!args || !inputs || !Array.isArray(inputs)) {
+function serializeEventArgs(iface, ev) {
+  const values =
+    ev && ev.values !== undefined && ev.values !== null ? ev.values : ev && ev.args;
+  if (values == null) {
     return {};
   }
+
+  let inputs = ev && ev.fragment && ev.fragment.inputs;
+  if (!inputs || !Array.isArray(inputs)) {
+    const sig = ev && ev.signature;
+    const meta =
+      sig && iface && iface.events && Object.prototype.hasOwnProperty.call(iface.events, sig)
+        ? iface.events[sig]
+        : null;
+    inputs = meta && meta.inputs;
+  }
+  if (!inputs || !Array.isArray(inputs)) {
+    return {};
+  }
+
   const out = {};
   for (let i = 0; i < inputs.length; i++) {
     const name = inputs[i] && inputs[i].name ? String(inputs[i].name) : `_${i}`;
-    const packed = serializeArgValue(args[i]);
+    let v;
+    if (Object.prototype.hasOwnProperty.call(values, name)) {
+      v = values[name];
+    } else {
+      v = values[i];
+    }
+    const packed = serializeArgValue(v);
     if (packed !== undefined) {
       out[name] = packed;
     }

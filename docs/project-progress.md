@@ -61,8 +61,9 @@
 
 ## 2026-04：Audit 中 `proposalId` / `caller` 为空
 
-- **原因**：`eventListener` 里旧版 `serializeArgs` 用 `Object.keys(ev.args)` 且跳过数字键；ethers v5 的 `Result` 往往只有可枚举的数字下标，导致写入 **`args: {}`**，Judge 表格中 **proposalId**、**caller** 全为 `—`。  
-- **修复**：按 **`ev.fragment.inputs`** 下标与 **`ev.args[i]`** 序列化（`auditEventArgs.js`）。**新产生**的审计行会带齐字段；历史 `audit.jsonl` 仍为空对象则需依赖新事件或清空后重跑。
+- **原因 1**：旧版 `serializeArgs` 依赖 `Object.keys(ev.args)` 且跳过数字键，与 ethers `Result` 不兼容。  
+- **原因 2（根因）**：仓库使用的 **ethers v4 风格 `Interface.parseLog`** 返回 **`LogDescription`**：解码结果在 **`ev.values`**，参数表在 **`iface.events[ev.signature].inputs`**，**没有** `ev.args` / `ev.fragment`。仅按 `ev.args`+`ev.fragment` 序列化时恒为 **`{}`**。  
+- **修复**：`serializeEventArgs(iface, ev)` 使用 **`ev.values`**（无则回退 `ev.args`）+ **`iface.events[ev.signature].inputs`**。重启网关后新写入的审计行会带齐字段。
 
 ---
 

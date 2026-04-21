@@ -122,7 +122,7 @@ async function processBlock(web3j, iface, contractAddrLower, blockNum) {
           txHash,
           logIndex,
           event: ev.name,
-          args: serializeEventArgs(ev)
+          args: serializeEventArgs(iface, ev)
         });
         written += 1;
       } catch (_) {
