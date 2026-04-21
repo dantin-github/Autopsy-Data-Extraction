@@ -11,8 +11,8 @@ import streamlit as st
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
 from workspace_state import (
     PENDING_PROPOSAL_ID_KEY,
+    PENDING_WORKSPACE_TAB_INDEX_KEY,
     WORKSPACE_REVIEW,
-    WORKSPACE_TAB_INDEX_KEY,
 )
 
 
@@ -160,5 +160,5 @@ def render_audit_trail_tab() -> None:
         )
         if st.button("Open in Judicial Review", type="primary", key="audit_open_review_btn"):
             st.session_state[PENDING_PROPOSAL_ID_KEY] = pick
-            st.session_state[WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_REVIEW
+            st.session_state[PENDING_WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_REVIEW
             st.rerun()

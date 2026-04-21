@@ -17,6 +17,7 @@ from pages_ui.judicial_review_tab import render_judicial_review_tab
 from pages_ui.query_tab import render_query_tab
 from services.gateway_client import GatewayError, GatewayTransportError, get_gateway_client
 from workspace_state import (
+    PENDING_WORKSPACE_TAB_INDEX_KEY,
     WORKSPACE_AUDIT,
     WORKSPACE_LABELS,
     WORKSPACE_QUERY,
@@ -35,6 +36,15 @@ from session_guard import (
 
 def _render_judge_workspace() -> None:
     """Main workspace: radio navigation so Audit can switch to Judicial Review (S5.3)."""
+    _pending_tab = st.session_state.pop(PENDING_WORKSPACE_TAB_INDEX_KEY, None)
+    if _pending_tab is not None:
+        try:
+            _pt = int(_pending_tab)
+        except (TypeError, ValueError):
+            _pt = None
+        if _pt in (WORKSPACE_QUERY, WORKSPACE_REVIEW, WORKSPACE_AUDIT):
+            st.session_state[WORKSPACE_TAB_INDEX_KEY] = _pt
+
     if WORKSPACE_TAB_INDEX_KEY not in st.session_state:
         st.session_state[WORKSPACE_TAB_INDEX_KEY] = WORKSPACE_QUERY
     cur = int(st.session_state[WORKSPACE_TAB_INDEX_KEY])
