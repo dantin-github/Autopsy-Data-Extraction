@@ -8,9 +8,13 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * Minimal HTTP client for api-gateway: {@code POST /api/upload}, {@code GET /health}.
+ * Phase 4 S4.7: optional {@link UploadClientTiming} records wall-clock RTT from just before {@code openConnection()}
+ * through response body read (or failure), for receipt / §5.4.
  */
 public final class GatewayClient {
 
@@ -26,23 +30,63 @@ public final class GatewayClient {
             String signingPassword,
             boolean debugTiming)
             throws GatewayUploadException {
-        if (authToken == null || authToken.isBlank()) {
-            throw new GatewayUploadException(
-                    GatewayUploadException.Kind.BAD_REQUEST,
-                    0,
-                    "auth token is required",
-                    null,
-                    null);
-        }
-        UploadRequest payload =
-                signingPassword != null && !signingPassword.isEmpty()
-                        ? request.withSigningPassword(signingPassword)
-                        : request;
-        byte[] body = payload.toJson().getBytes(StandardCharsets.UTF_8);
-        String url = joinUrl(baseUrl, "/api/upload");
+        return uploadCase(baseUrl, request, authToken, signingPassword, debugTiming, null, null, null);
+    }
+
+    public UploadResponse uploadCase(
+            String baseUrl,
+            UploadRequest request,
+            String authToken,
+            String signingPassword,
+            boolean debugTiming,
+            AtomicReference<HttpURLConnection> connectionHolder,
+            BooleanSupplier cancelRequested)
+            throws GatewayUploadException {
+        return uploadCase(
+                baseUrl, request, authToken, signingPassword, debugTiming, connectionHolder, cancelRequested, null);
+    }
+
+    /**
+     * @param connectionHolder if non-null, set to the open {@link HttpURLConnection} until closed (for
+     *     {@link HttpURLConnection#disconnect()} on user cancel)
+     * @param cancelRequested if non-null and returns true, aborts with {@link GatewayUploadException.Kind#CANCELLED}
+     * @param clientTiming if non-null, {@link UploadClientTiming#markHttpRequestStarted()} runs immediately before
+     *     {@code openConnection()}; {@link UploadClientTiming#finishHttpAttempt()} always runs in {@code finally}
+     */
+    public UploadResponse uploadCase(
+            String baseUrl,
+            UploadRequest request,
+            String authToken,
+            String signingPassword,
+            boolean debugTiming,
+            AtomicReference<HttpURLConnection> connectionHolder,
+            BooleanSupplier cancelRequested,
+            UploadClientTiming clientTiming)
+            throws GatewayUploadException {
         HttpURLConnection c = null;
         try {
+            if (authToken == null || authToken.isBlank()) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.BAD_REQUEST,
+                        0,
+                        "auth token is required",
+                        null,
+                        null);
+            }
+            throwIfCancelled(cancelRequested);
+            UploadRequest payload =
+                    signingPassword != null && !signingPassword.isEmpty()
+                            ? request.withSigningPassword(signingPassword)
+                            : request;
+            byte[] body = payload.toJson().getBytes(StandardCharsets.UTF_8);
+            String url = joinUrl(baseUrl, "/api/upload");
+            if (clientTiming != null) {
+                clientTiming.markHttpRequestStarted();
+            }
             c = (HttpURLConnection) new URL(url).openConnection();
+            if (connectionHolder != null) {
+                connectionHolder.set(c);
+            }
             c.setRequestMethod("POST");
             c.setConnectTimeout(CONNECT_TIMEOUT_MS);
             c.setReadTimeout(READ_TIMEOUT_MS);
@@ -54,9 +98,11 @@ public final class GatewayClient {
             if (debugTiming) {
                 c.setRequestProperty("X-Debug-Timing", "1");
             }
+            throwIfCancelled(cancelRequested);
             try (OutputStream out = c.getOutputStream()) {
                 out.write(body);
             }
+            throwIfCancelled(cancelRequested);
             int code = c.getResponseCode();
             String respBody = readResponseBody(c);
             if (code >= 200 && code < 300) {
@@ -64,6 +110,14 @@ public final class GatewayClient {
             }
             throw GatewayUploadException.fromHttpResponse(code, respBody);
         } catch (SocketTimeoutException e) {
+            if (isCancelled(cancelRequested)) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.CANCELLED,
+                        0,
+                        "cancelled",
+                        null,
+                        e);
+            }
             throw new GatewayUploadException(
                     GatewayUploadException.Kind.TIMEOUT,
                     0,
@@ -71,17 +125,44 @@ public final class GatewayClient {
                     null,
                     e);
         } catch (IOException e) {
+            if (isCancelled(cancelRequested)) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.CANCELLED,
+                        0,
+                        "cancelled",
+                        null,
+                        e);
+            }
             throw new GatewayUploadException(
                     GatewayUploadException.Kind.GATEWAY_UNREACHABLE,
                     0,
                     "unreachable: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()),
                     null,
                     e);
+        } catch (GatewayUploadException e) {
+            throw e;
         } finally {
+            if (clientTiming != null) {
+                clientTiming.finishHttpAttempt();
+            }
+            if (connectionHolder != null) {
+                connectionHolder.set(null);
+            }
             if (c != null) {
                 c.disconnect();
             }
         }
+    }
+
+    private static void throwIfCancelled(BooleanSupplier cancelRequested) throws GatewayUploadException {
+        if (isCancelled(cancelRequested)) {
+            throw new GatewayUploadException(
+                    GatewayUploadException.Kind.CANCELLED, 0, "cancelled", null, null);
+        }
+    }
+
+    private static boolean isCancelled(BooleanSupplier cancelRequested) {
+        return cancelRequested != null && cancelRequested.getAsBoolean();
     }
 
     /**

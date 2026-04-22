@@ -56,3 +56,28 @@ test('nested objects: keys sorted at each depth', () => {
   assert.strictEqual(typeof h, 'string');
   assert.strictEqual(h.length, 64);
 });
+
+test('S4.4: uploadStatus / uploadDetail ignored for computeHash and verify', () => {
+  const withUpload = JSON.stringify({
+    caseId: 'TEST-2025-001',
+    examiner: 'police',
+    aggregateHash: EXPECTED_COMPUTE_HASH,
+    aggregateHashNote: 'SHA-256 of body',
+    uploadStatus: 'success',
+    uploadDetail: { txHash: '0xabc', blockNumber: 1 }
+  });
+  assert.strictEqual(integrity.computeHash(withUpload), EXPECTED_COMPUTE_HASH);
+  assert.strictEqual(integrity.verify(withUpload), true);
+});
+
+test('S4.5: uploadStatus cancelled still verifies', () => {
+  const doc = JSON.stringify({
+    caseId: 'TEST-2025-001',
+    examiner: 'police',
+    aggregateHash: EXPECTED_COMPUTE_HASH,
+    aggregateHashNote: 'SHA-256 of body',
+    uploadStatus: 'cancelled',
+    uploadDetail: { reason: 'user_cancelled', clientRoundTripMs: 50 }
+  });
+  assert.strictEqual(integrity.verify(doc), true);
+});

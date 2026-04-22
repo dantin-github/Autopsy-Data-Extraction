@@ -1,11 +1,11 @@
 package org.sleuthkit.autopsy.report.caseextract.gateway;
 
-final class JsonStrings {
+public final class JsonStrings {
 
     private JsonStrings() {
     }
 
-    static String quote(String s) {
+    public static String quote(String s) {
         if (s == null) {
             return "null";
         }

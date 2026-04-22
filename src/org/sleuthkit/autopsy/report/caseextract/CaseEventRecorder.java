@@ -192,7 +192,8 @@ public final class CaseEventRecorder {
         }
     }
 
-    void addEvent(String operationType, String operator, String detail) {
+    /** Appends one row to the in-memory log and {@code case_extract_events.json} under the open case (Phase 4 S4.6). */
+    public void addEvent(String operationType, String operator, String detail) {
         events.add(new OperationEntry(System.currentTimeMillis(), operationType, operator, detail));
         persistToCaseDirectory();
     }

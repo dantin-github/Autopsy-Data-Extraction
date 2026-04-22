@@ -7,17 +7,28 @@ import org.sleuthkit.autopsy.report.ReportModuleSettings;
  */
 public final class CaseDataExtractReportModuleSettings implements ReportModuleSettings {
 
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 3L;
 
     private String gatewayUrl = "http://localhost:3000";
     private boolean uploadEnabled;
     /** Always CaseRegistry path; legacy "crud" from older configs is ignored at upload time. */
     private String contractMode = "contract";
 
-    /** Session-only; not serialized (NbPreferences will not store this in S3.3). */
-    private transient String oneTimeToken = "";
+    /**
+     * Police OTP / X-Auth-Token. Must be part of normal Java serialization: Autopsy copies report module settings
+     * for the generation task, and {@code transient} fields are dropped, which caused empty token at upload time.
+     * {@link CaseDataExtractUploadPreferences} still does not write this to NbPreferences.
+     */
+    private String oneTimeToken = "";
 
-    private transient String signingPassword = "";
+    /** Keystore signing password for CaseRegistry upload; same serialization note as {@link #oneTimeToken}. */
+    private String signingPassword = "";
+
+    /**
+     * When true, {@code POST /api/upload} sends {@code X-Debug-Timing: 1} so the gateway may return timing fields
+     * (Phase 4 S4.2). Persisted via {@link CaseDataExtractUploadPreferences}; not secret.
+     */
+    private boolean uploadRequestTiming;
 
     public CaseDataExtractReportModuleSettings() {
     }
@@ -74,6 +85,14 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
         this.signingPassword = signingPassword != null ? signingPassword : "";
     }
 
+    public boolean isUploadRequestTiming() {
+        return uploadRequestTiming;
+    }
+
+    public void setUploadRequestTiming(boolean uploadRequestTiming) {
+        this.uploadRequestTiming = uploadRequestTiming;
+    }
+
     CaseDataExtractReportModuleSettings copy() {
         CaseDataExtractReportModuleSettings o = new CaseDataExtractReportModuleSettings();
         copyTo(o);
@@ -89,5 +108,6 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
         o.contractMode = normalizeContractMode(this.contractMode);
         o.oneTimeToken = this.oneTimeToken;
         o.signingPassword = this.signingPassword;
+        o.uploadRequestTiming = this.uploadRequestTiming;
     }
 }

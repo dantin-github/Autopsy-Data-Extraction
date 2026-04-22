@@ -30,6 +30,7 @@ public final class CanonicalJsonTest {
 
     public static void main(String[] args) throws Exception {
         testIntegrityJsBaseline();
+        testUploadFieldsIgnoredForAggregateHash();
         testFixtureFile(resolveFixturePath(args));
         System.out.println("CanonicalJsonTest: all assertions passed.");
     }
@@ -55,6 +56,18 @@ public final class CanonicalJsonTest {
         String expected = "bee2393f2d6ac949e47eab0f6a7e04d6eb1747f5c59905d98f4983adbd4a1789";
         String got = CanonicalJson.computeAggregateHash(base);
         assertEq(expected, got, "integrity.test.js baseline hash");
+    }
+
+    /** Phase 4 S4.4: post-upload keys must not change aggregate hash. */
+    private static void testUploadFieldsIgnoredForAggregateHash() {
+        String expected = "bee2393f2d6ac949e47eab0f6a7e04d6eb1747f5c59905d98f4983adbd4a1789";
+        String withUpload =
+                "{\"caseId\":\"TEST-2025-001\",\"examiner\":\"police\","
+                        + "\"aggregateHash\":\""
+                        + expected
+                        + "\",\"aggregateHashNote\":\"SHA-256 of body\","
+                        + "\"uploadStatus\":\"success\",\"uploadDetail\":{\"txHash\":\"0x99\"}}";
+        assertEq(expected, CanonicalJson.computeAggregateHash(withUpload), "hash ignores uploadStatus/uploadDetail");
     }
 
     private static void testFixtureFile(Path fixture) throws IOException {

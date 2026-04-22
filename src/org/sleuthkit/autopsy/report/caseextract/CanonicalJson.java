@@ -12,8 +12,9 @@ import java.util.TreeMap;
 
 /**
  * Canonical JSON for {@code aggregateHash}: parse → clear {@code aggregateHash} /
- * {@code aggregateHashNote} → deep lexicographic key sort at every object →
- * {@code JSON.stringify}-compatible compact UTF-8 serialization → SHA-256 hex.
+ * {@code aggregateHashNote} → drop {@code uploadStatus} / {@code uploadDetail} (Phase 4 S4.4) →
+ * deep lexicographic key sort at every object → {@code JSON.stringify}-compatible compact UTF-8
+ * serialization → SHA-256 hex.
  * <p>
  * Matches api-gateway {@code src/services/integrity.js} ({@code computeHash}).
  */
@@ -44,6 +45,8 @@ public final class CanonicalJson {
         JsonObject obj = (JsonObject) root;
         obj.map.put("aggregateHash", new JsonString(""));
         obj.map.put("aggregateHashNote", new JsonString(""));
+        obj.map.remove("uploadStatus");
+        obj.map.remove("uploadDetail");
         return stringify(sortKeysDeep(obj));
     }
 

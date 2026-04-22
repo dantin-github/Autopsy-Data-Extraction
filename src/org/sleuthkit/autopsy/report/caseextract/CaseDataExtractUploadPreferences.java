@@ -13,6 +13,7 @@ final class CaseDataExtractUploadPreferences {
     private static final String KEY_GATEWAY_URL = "gatewayUrl";
     private static final String KEY_UPLOAD_ENABLED = "uploadEnabled";
     private static final String KEY_CONTRACT_MODE = "contractMode";
+    private static final String KEY_UPLOAD_REQUEST_TIMING = "uploadRequestTiming";
 
     private CaseDataExtractUploadPreferences() {}
 
@@ -24,6 +25,7 @@ final class CaseDataExtractUploadPreferences {
         target.setGatewayUrl(p.get(KEY_GATEWAY_URL, "http://localhost:3000"));
         target.setUploadEnabled(p.getBoolean(KEY_UPLOAD_ENABLED, false));
         target.setContractMode(p.get(KEY_CONTRACT_MODE, "contract"));
+        target.setUploadRequestTiming(p.getBoolean(KEY_UPLOAD_REQUEST_TIMING, false));
     }
 
     static void saveFrom(CaseDataExtractReportModuleSettings source) {
@@ -34,6 +36,7 @@ final class CaseDataExtractUploadPreferences {
         p.put(KEY_GATEWAY_URL, source.getGatewayUrl());
         p.putBoolean(KEY_UPLOAD_ENABLED, source.isUploadEnabled());
         p.put(KEY_CONTRACT_MODE, source.getContractMode());
+        p.putBoolean(KEY_UPLOAD_REQUEST_TIMING, source.isUploadRequestTiming());
         try {
             p.flush();
         } catch (BackingStoreException ignored) {

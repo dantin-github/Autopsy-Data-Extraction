@@ -4,9 +4,9 @@ const crypto = require('crypto');
 
 /**
  * Case JSON aggregateHash verification (aligned with blockchain/.../IntegrityVerifier.java).
- * After parse, aggregateHash and aggregateHashNote are cleared, then the document is
- * serialized with lexicographically sorted object keys at every depth (Fastjson
- * SerializerFeature.MapSortField).
+ * After parse, aggregateHash and aggregateHashNote are cleared, and post-upload-only
+ * fields uploadStatus / uploadDetail are removed, then the document is serialized with
+ * lexicographically sorted object keys at every depth (Fastjson SerializerFeature.MapSortField).
  */
 
 function sortKeysDeep(value) {
@@ -35,6 +35,8 @@ function computeHash(caseDataJson) {
   const json = JSON.parse(caseDataJson);
   json.aggregateHash = '';
   json.aggregateHashNote = '';
+  delete json.uploadStatus;
+  delete json.uploadDetail;
   const canonical = sortKeysDeep(json);
   return sha256HexUtf8(JSON.stringify(canonical));
 }

@@ -41,6 +41,8 @@ final class UploadSettingsPanel extends JPanel {
     private final JTextField gatewayUrlField = new JTextField(24);
     private final JLabel gatewayUrlError = new JLabel("!");
     private final JCheckBox uploadAfterSaveCheck = new JCheckBox("Upload after save");
+    private final JCheckBox uploadTimingCheck =
+            new JCheckBox("Request upload timing (X-Debug-Timing)");
     private final JPasswordField otpField = new JPasswordField(24);
     private final JPasswordField signingPasswordField = new JPasswordField(24);
     private final JButton testConnectionButton = new JButton("Test Connection");
@@ -112,12 +114,16 @@ final class UploadSettingsPanel extends JPanel {
 
         testConnectionButton.addActionListener(e -> runTestConnection());
 
+        uploadTimingCheck.setToolTipText(
+                "When enabled, the gateway may include timing fields in the upload response (diagnostics).");
+
         int row = 0;
         addRow(
                 row++,
                 label("Gateway Base URL"),
                 gatewayUrlRow());
         addRow(row++, label(" "), uploadAfterSaveCheck);
+        addRow(row++, label(" "), uploadTimingCheck);
         addRow(row++, label("Token"), otpField);
         addRow(row++, label("Signing password"), signingPasswordField);
         addRow(row++, label(" "), testConnectionRow());
@@ -170,6 +176,7 @@ final class UploadSettingsPanel extends JPanel {
 
     private void applyUploadDependentEnabledState() {
         boolean up = uploadAfterSaveCheck.isSelected();
+        uploadTimingCheck.setEnabled(up);
         otpField.setEnabled(up);
         signingPasswordField.setEnabled(up);
         testConnectionButton.setEnabled(up);
@@ -258,6 +265,7 @@ final class UploadSettingsPanel extends JPanel {
         gatewayUrlField.setText(src.getGatewayUrl());
         boolean up = src.isUploadEnabled();
         uploadAfterSaveCheck.setSelected(up && isGatewayUrlValidFor(src.getGatewayUrl()));
+        uploadTimingCheck.setSelected(src.isUploadRequestTiming());
         otpField.setText(src.getOneTimeToken());
         signingPasswordField.setText(src.getSigningPassword());
         connectionStatusLabel.setText("Not tested");
@@ -276,6 +284,7 @@ final class UploadSettingsPanel extends JPanel {
         boolean up = uploadAfterSaveCheck.isSelected();
         target.setUploadEnabled(up && isGatewayUrlValidFor(url));
         target.setContractMode("contract");
+        target.setUploadRequestTiming(uploadTimingCheck.isSelected());
         target.setOneTimeToken(new String(otpField.getPassword()));
         target.setSigningPassword(new String(signingPasswordField.getPassword()));
     }

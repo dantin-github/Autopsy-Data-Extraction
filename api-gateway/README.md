@@ -27,6 +27,7 @@ Police / judge demo accounts are defined in **`data/users.example.json`** (passw
 | `MAIL_DRY_RUN` | `1` = log OTP in server output, no SMTP. |
 | `OTP_TTL_MS` | Police OTP lifetime (default 2 hours). |
 | `RECORD_STORE_PATH` | Private JSON store (default: `%USERPROFILE%\.case_record_store.json`). |
+| `JSON_BODY_LIMIT` | Max JSON body for Express (default **`100mb`**). Full Autopsy exports exceed the old 2mb cap. |
 | Chain | `conf/fisco-config.json` + `conf/accounts/gateway.pem` — see `.env.example`. |
 | `CASE_REGISTRY_ADDR` | Set by **`npm run deploy-contract`** (S5.1) after compiling `CaseRegistry`. |
 | `CHAIN_MODE` | **`contract`** (default) or **`crud`**. With **`CASE_REGISTRY_ADDR`** set, **`contract`** = `t_case_hash` insert + **`CaseRegistry.createRecord`** (needs **`signingPassword`** on upload). **`crud`** = table insert only (legacy / tests). |

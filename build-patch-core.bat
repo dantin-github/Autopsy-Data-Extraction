@@ -47,7 +47,10 @@ if not exist "%OUT%" mkdir "%OUT%"
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\CaseDataExtractMonitorTopComponent.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\OpenCaseDataExtractMonitorAction.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\UploadSettingsPanel.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\UploadReceiptWriter.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\ReportUploadStatusPatcher.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\GatewayClient.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\UploadClientTiming.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\GatewayError.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\GatewayUploadException.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\JsonStrings.java" ^

@@ -15,6 +15,8 @@ public final class GatewayUploadException extends Exception {
         CHAIN_UNAVAILABLE,
         GATEWAY_UNREACHABLE,
         TIMEOUT,
+        /** User cancelled from the report progress UI during {@code POST /api/upload} (Phase 4 S4.5). */
+        CANCELLED,
         UNKNOWN
     }
 

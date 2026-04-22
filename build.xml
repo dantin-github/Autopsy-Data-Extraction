@@ -72,8 +72,9 @@
         <javac srcdir="${test.src.dir}" destdir="${build.test.classes}" source="17" target="17"
                includeantruntime="false" encoding="UTF-8">
             <compilerarg value="-proc:none"/>
-            <classpath refid="autopsy.cp"/>
+            <!-- Prefer freshly compiled plugin classes over any same FQCN in autopsy/modules -->
             <classpath path="${build.dir}/classes"/>
+            <classpath refid="autopsy.cp"/>
         </javac>
     </target>
 

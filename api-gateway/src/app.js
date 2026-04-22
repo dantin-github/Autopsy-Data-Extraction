@@ -18,8 +18,8 @@ function createApp() {
 
   app.disable('x-powered-by');
 
-  app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: config.jsonBodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: config.jsonBodyLimit }));
   app.use(cookieParser());
   app.use(
     session({

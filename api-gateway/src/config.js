@@ -160,6 +160,10 @@ const uploadTimingInResponse = ['1', 'true', 'yes'].includes(
   String(process.env.UPLOAD_TIMING_IN_RESPONSE || '').toLowerCase()
 );
 
+/** Max JSON body size (e.g. POST /api/upload with full case export). Express string like 100mb. */
+const jsonBodyLimitRaw = String(process.env.JSON_BODY_LIMIT || '100mb').trim();
+const jsonBodyLimit = jsonBodyLimitRaw !== '' ? jsonBodyLimitRaw : '100mb';
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -188,5 +192,6 @@ module.exports = {
   eventListenerPollMs,
   eventListenerEnabled,
   autoSeedRoles,
-  uploadTimingInResponse
+  uploadTimingInResponse,
+  jsonBodyLimit
 };

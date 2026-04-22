@@ -7,9 +7,14 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JPanel;
@@ -24,10 +29,28 @@ import org.sleuthkit.datamodel.Image;
 import org.sleuthkit.datamodel.SleuthkitCase;
 import org.sleuthkit.datamodel.TskCoreException;
 import org.sleuthkit.datamodel.TskData;
+import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayClient;
+import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayUploadException;
+import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayError;
+import org.sleuthkit.autopsy.report.caseextract.gateway.UploadClientTiming;
+import org.sleuthkit.autopsy.report.caseextract.gateway.UploadRequest;
+import org.sleuthkit.autopsy.report.caseextract.gateway.UploadResponse;
 
 /**
  * Case Data Extract Report Module: outputs case ID, examiner, operation log,
  * source file hashes, case file hashes, and an aggregate hash.
+ * Phase 4 S4.1: optional {@code POST /api/upload} after the JSON file is saved when upload is enabled in settings.
+ * Phase 4 S4.2: operator-facing upload outcome (table + CaseRegistry tx, error hints, optional {@code X-Debug-Timing}).
+ * Phase 4 S4.3: {@code upload_receipt.json} beside the report with client RTT and gateway {@code requestId} / {@code timing} /
+ * {@code blockTimestampUtc} when present.
+ * Phase 4 S4.4: append {@code uploadStatus} / {@code uploadDetail} to {@code case_data_extract.json} after upload outcome;
+ * {@link CanonicalJson} and api-gateway {@code integrity.js} ignore these keys for {@code aggregateHash}.
+ * Phase 4 S4.5: during upload, status text {@code Uploading to blockchain…}; cancel disconnects {@link HttpURLConnection}
+ * and writes receipt / main JSON {@code uploadStatus} {@code cancelled}.
+ * Phase 4 S4.6: {@link CaseEventRecorder#addEvent} {@code UPLOAD_OK} / {@code UPLOAD_FAILED} with English audit detail; gateway
+ * failures log {@link Level#WARNING} with operator-facing summary per {@link GatewayUploadException.Kind}.
+ * Phase 4 S4.7: {@link UploadClientTiming} inside {@link GatewayClient} defines receipt {@code uploadStartedAt} /
+ * {@code uploadResponseAt} / {@code clientRoundTripMs} for §5.4.
  */
 @org.openide.util.lookup.ServiceProvider(service = GeneralReportModule.class)
 @org.openide.util.NbBundle.Messages({
@@ -38,7 +61,30 @@ import org.sleuthkit.datamodel.TskData;
     "ReportModule.status.files=Collecting file list...",
     "ReportModule.status.filesCount=Processed {0} / {1} files",
     "ReportModule.status.done=Report generated successfully",
-    "ReportModule.status.error=Failed to write report"
+    "ReportModule.status.error=Failed to write report",
+    "ReportModule.status.uploading=Uploading report to gateway...",
+    "ReportModule.status.uploadingBlockchain=Uploading to blockchain\u2026",
+    "ReportModule.status.uploadCancelled=Report generated; local report saved; gateway upload was cancelled.",
+    "ReportModule.status.uploadOk=Report generated; gateway upload completed (table tx: {0}).",
+    "ReportModule.status.uploadOkBoth=Report generated; gateway upload completed (table tx: {0}, CaseRegistry tx: {1}).",
+    "ReportModule.status.uploadFailed=Report generated; gateway upload failed: {0}",
+    "ReportModule.status.uploadSkippedBadUrl=Report generated; gateway upload skipped (invalid gateway URL).",
+    "ReportModule.status.uploadSkippedNoToken=Report generated; gateway upload skipped (token is required).",
+    "ReportModule.status.uploadSkippedNoCaseId=Report generated; gateway upload skipped (case number is empty).",
+    "ReportModule.status.uploadTimingPartial=Timing: {0} ms total (integrity {1} ms, chain {2} ms).",
+    "ReportModule.status.uploadTimingFull=Timing: {0} ms total (integrity {1} ms, chain {2} ms, CaseRegistry {3} ms).",
+    "ReportModule.uploadErr.tokenExpired=Token expired; request a new OTP from the gateway.",
+    "ReportModule.uploadErr.tokenConsumed=Token already used; request a new OTP.",
+    "ReportModule.uploadErr.duplicate=Case is already on CaseRegistry; use modify workflow or a different case number.",
+    "ReportModule.uploadErr.payloadTooLarge=Request too large for the gateway; increase JSON_BODY_LIMIT and restart the API server.",
+    "ReportModule.uploadErr.timeout=Gateway connection timed out.",
+    "ReportModule.uploadErr.unreachable=Gateway unreachable.",
+    "ReportModule.uploadErr.chainUnavailable=Blockchain service unavailable (503).",
+    "ReportModule.uploadErr.forbidden=Not allowed (check police account and signing password).",
+    "ReportModule.uploadErr.aggregate=Aggregate hash verification failed.",
+    "ReportModule.uploadErr.signing=Signing password missing or incorrect for contract upload.",
+    "ReportModule.uploadErr.http=HTTP {0}: {1}",
+    "ReportModule.uploadErr.cancelled=Upload cancelled."
 })
 public final class CaseDataExtractReportModule implements GeneralReportModule {
 
@@ -46,6 +92,10 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
     private static final String REPORT_DIR = "CaseDataExtract";
     private static final String REPORT_FILENAME = "case_data_extract.json";
     private static final int PROGRESS_UPDATE_EVERY = 500;
+
+    /** Same rule as {@link UploadSettingsPanel} (Phase 3 S3.4). */
+    private static final Pattern GATEWAY_BASE_URL_PATTERN =
+            Pattern.compile("^https?://[\\w.\\-]+(:\\d+)?(/.*)?$");
 
     private static CaseDataExtractReportModule instance;
 
@@ -288,24 +338,375 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
                 .append("keys sorted lexicographically at every object depth, compact UTF-8 serialization (matches api-gateway integrity.js)\"\n");
         report.append("}\n");
 
+        String reportJson = report.toString();
+        CaseDataExtractReportModuleSettings runSettings = effectiveSettingsForRun();
+
         try {
             // reportPath is the directory Autopsy created for this module's output
             java.nio.file.Path outDir = java.nio.file.Paths.get(reportPath, REPORT_DIR);
             Files.createDirectories(outDir);
             java.nio.file.Path outPath = outDir.resolve(REPORT_FILENAME);
             try (BufferedWriter w = Files.newBufferedWriter(outPath, StandardCharsets.UTF_8)) {
-                w.write(report.toString());
+                w.write(reportJson);
             }
             try {
                 openCase.addReport(outPath.toAbsolutePath().toString(), getClass().getSimpleName(), getName());
             } catch (TskCoreException ex) {
                 LOGGER.log(Level.WARNING, "addReport failed", ex);
             }
-            progressPanel.complete(ReportProgressPanel.ReportStatus.COMPLETE, NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.done"));
+
+            String completion =
+                    NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.done");
+            if (runSettings.isUploadEnabled()) {
+                progressPanel.updateStatusLabel(
+                        NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadingBlockchain"));
+                String uploadMsg =
+                        maybeUploadReportJson(
+                                outPath,
+                                outDir,
+                                progressPanel,
+                                runSettings,
+                                reportJson,
+                                caseNumber,
+                                examiner,
+                                aggregateHash);
+                if (uploadMsg != null) {
+                    completion = uploadMsg;
+                }
+            }
+            progressPanel.complete(ReportProgressPanel.ReportStatus.COMPLETE, completion);
         } catch (IOException e) {
             progressPanel.complete(ReportProgressPanel.ReportStatus.ERROR, NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.error"));
             LOGGER.log(Level.SEVERE, "Write report failed", e);
         }
+    }
+
+    private CaseDataExtractReportModuleSettings effectiveSettingsForRun() {
+        CaseDataExtractReportModuleSettings s = new CaseDataExtractReportModuleSettings();
+        if (uploadSettingsPanel != null) {
+            uploadSettingsPanel.saveTo(s);
+        } else {
+            configuredSettings.copyTo(s);
+        }
+        return s;
+    }
+
+    /**
+     * Phase 4 S4.1–S4.5: POST /api/upload with police OTP after the JSON file is written; format outcome for the operator;
+     * write {@link UploadReceiptWriter#RECEIPT_FILENAME} on HTTP success, failure, or cancel; patch {@code case_data_extract.json} with
+     * {@code uploadStatus} / {@code uploadDetail} when upload is enabled.
+     *
+     * @return a user-facing completion line when upload was attempted or skipped due to validation; {@code null} if
+     *     upload is disabled
+     */
+    private String maybeUploadReportJson(
+            java.nio.file.Path caseJsonPath,
+            java.nio.file.Path reportOutputDir,
+            ReportProgressPanel progressPanel,
+            CaseDataExtractReportModuleSettings cfg,
+            String reportJson,
+            String caseId,
+            String examiner,
+            String aggregateHash) {
+        if (!cfg.isUploadEnabled()) {
+            return null;
+        }
+        String base = cfg.getGatewayUrl() != null ? cfg.getGatewayUrl().trim() : "";
+        if (base.isEmpty() || !GATEWAY_BASE_URL_PATTERN.matcher(base).matches()) {
+            try {
+                ReportUploadStatusPatcher.patchSkipped(caseJsonPath, "invalid_gateway_url");
+            } catch (IOException ioe) {
+                LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
+            }
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedBadUrl");
+        }
+        String token = cfg.getOneTimeToken() != null ? cfg.getOneTimeToken().trim() : "";
+        if (token.isEmpty()) {
+            try {
+                ReportUploadStatusPatcher.patchSkipped(caseJsonPath, "missing_token");
+            } catch (IOException ioe) {
+                LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
+            }
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoToken");
+        }
+        if (caseId == null || caseId.isBlank()) {
+            try {
+                ReportUploadStatusPatcher.patchSkipped(caseJsonPath, "missing_case_id");
+            } catch (IOException ioe) {
+                LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
+            }
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoCaseId");
+        }
+        String generatedAt =
+                DateTimeFormatter.ISO_INSTANT.format(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        UploadRequest req =
+                new UploadRequest(
+                        caseId.trim(),
+                        examiner != null ? examiner.trim() : "",
+                        aggregateHash,
+                        generatedAt,
+                        reportJson);
+        String signing = cfg.getSigningPassword();
+        boolean timing = cfg.isUploadRequestTiming();
+        AtomicReference<HttpURLConnection> connRef = new AtomicReference<>();
+        AtomicBoolean stopWatcher = new AtomicBoolean(false);
+        Thread cancelWatcher =
+                new Thread(
+                        () -> {
+                            while (!stopWatcher.get()) {
+                                try {
+                                    if (progressPanel.getStatus()
+                                            == ReportProgressPanel.ReportStatus.CANCELED) {
+                                        HttpURLConnection x = connRef.get();
+                                        if (x != null) {
+                                            x.disconnect();
+                                        }
+                                        return;
+                                    }
+                                    Thread.sleep(120);
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                    return;
+                                }
+                            }
+                        },
+                        "caseextract-upload-cancel-watch");
+        cancelWatcher.setDaemon(true);
+        cancelWatcher.start();
+        UploadClientTiming clientTiming = new UploadClientTiming();
+        try {
+            try {
+                UploadResponse resp =
+                        new GatewayClient()
+                                .uploadCase(
+                                        base,
+                                        req,
+                                        token,
+                                        signing,
+                                        timing,
+                                        connRef,
+                                        () ->
+                                                progressPanel.getStatus()
+                                                        == ReportProgressPanel.ReportStatus.CANCELED,
+                                        clientTiming);
+                Instant uploadStartedAt = clientTiming.getUploadStartedAt();
+                Instant uploadResponseAt = clientTiming.getUploadResponseAt();
+                long clientRoundTripMs = clientTiming.getClientRoundTripMs();
+                try {
+                    UploadReceiptWriter.writeSuccess(
+                            reportOutputDir, uploadStartedAt, uploadResponseAt, clientRoundTripMs, resp);
+                } catch (IOException ioe) {
+                    LOGGER.log(Level.WARNING, "Could not write upload_receipt.json", ioe);
+                }
+                try {
+                    ReportUploadStatusPatcher.patchSuccess(caseJsonPath, resp, clientRoundTripMs);
+                } catch (IOException ioe) {
+                    LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload success)", ioe);
+                }
+                String reg = resp.getCaseRegistryTxHash();
+                LOGGER.log(
+                        Level.INFO,
+                        "Gateway upload succeeded caseId={0} tableTx={1} registryTx={2} clientRoundTripMs={3}",
+                        new Object[] {caseId, resp.getTxHash(), reg != null ? reg : "", clientRoundTripMs});
+                String msg;
+                if (reg != null && !reg.isBlank()) {
+                    msg =
+                            NbBundle.getMessage(
+                                    CaseDataExtractReportModule.class,
+                                    "ReportModule.status.uploadOkBoth",
+                                    resp.getTxHash(),
+                                    reg);
+                } else {
+                    msg =
+                            NbBundle.getMessage(
+                                    CaseDataExtractReportModule.class,
+                                    "ReportModule.status.uploadOk",
+                                    resp.getTxHash());
+                }
+                if (timing && resp.getTiming() != null) {
+                    msg += " " + formatUploadTimingLine(resp.getTiming());
+                }
+                recordUploadOk(examiner, caseId, resp, clientRoundTripMs);
+                return msg;
+            } catch (GatewayUploadException e) {
+                Instant uploadStartedAt = clientTiming.getUploadStartedAt();
+                Instant uploadResponseAt = clientTiming.getUploadResponseAt();
+                long clientRoundTripMs = clientTiming.getClientRoundTripMs();
+                boolean userCancel =
+                        progressPanel.getStatus() == ReportProgressPanel.ReportStatus.CANCELED
+                                || e.getKind() == GatewayUploadException.Kind.CANCELLED;
+                if (userCancel) {
+                    try {
+                        UploadReceiptWriter.writeCancelled(
+                                reportOutputDir, uploadStartedAt, uploadResponseAt, clientRoundTripMs);
+                    } catch (IOException ioe) {
+                        LOGGER.log(Level.WARNING, "Could not write upload_receipt.json", ioe);
+                    }
+                    try {
+                        ReportUploadStatusPatcher.patchCancelled(caseJsonPath, clientRoundTripMs);
+                    } catch (IOException ioe) {
+                        LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload cancelled)", ioe);
+                    }
+                    recordUploadCancelled(examiner, caseId, clientRoundTripMs);
+                    return NbBundle.getMessage(
+                            CaseDataExtractReportModule.class, "ReportModule.status.uploadCancelled");
+                }
+                try {
+                    UploadReceiptWriter.writeFailure(
+                            reportOutputDir, uploadStartedAt, uploadResponseAt, clientRoundTripMs, e);
+                } catch (IOException ioe) {
+                    LOGGER.log(Level.WARNING, "Could not write upload_receipt.json", ioe);
+                }
+                try {
+                    ReportUploadStatusPatcher.patchFailure(caseJsonPath, e, clientRoundTripMs);
+                } catch (IOException ioe) {
+                    LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload failed)", ioe);
+                }
+                recordUploadFailed(examiner, caseId, e, clientRoundTripMs);
+                String detail = summarizeGatewayUploadFailure(e);
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadFailed", detail);
+            }
+        } finally {
+            stopWatcher.set(true);
+            cancelWatcher.interrupt();
+            try {
+                cancelWatcher.join(2000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private static void recordUploadOk(String examiner, String caseId, UploadResponse resp, long clientRoundTripMs) {
+        String ex = examiner != null ? examiner : "";
+        String cid = caseId != null ? caseId : "";
+        String reg = resp.getCaseRegistryTxHash();
+        StringBuilder detail = new StringBuilder(180);
+        detail.append("caseId=").append(cid);
+        detail.append(" | tableTx=").append(resp.getTxHash());
+        detail.append(" | clientRoundTripMs=").append(clientRoundTripMs);
+        if (reg != null && !reg.isBlank()) {
+            detail.append(" | caseRegistryTx=").append(reg);
+        }
+        if (resp.getRequestId() != null && !resp.getRequestId().isBlank()) {
+            detail.append(" | requestId=").append(resp.getRequestId());
+        }
+        CaseEventRecorder.getInstance().addEvent("UPLOAD_OK", ex, detail.toString());
+        LOGGER.log(Level.INFO, "CaseEventRecorder UPLOAD_OK {0}", detail.toString());
+    }
+
+    /**
+     * User cancelled during upload (S4.5); plan S4.6 uses {@code UPLOAD_FAILED} with {@code errorKind=CANCELLED} in detail.
+     */
+    private static void recordUploadCancelled(String examiner, String caseId, long clientRoundTripMs) {
+        String ex = examiner != null ? examiner : "";
+        String cid = caseId != null ? caseId : "";
+        String detail =
+                "caseId="
+                        + cid
+                        + " | errorKind=CANCELLED | clientRoundTripMs="
+                        + clientRoundTripMs;
+        CaseEventRecorder.getInstance().addEvent("UPLOAD_FAILED", ex, detail);
+        LOGGER.log(Level.INFO, "CaseEventRecorder UPLOAD_FAILED (cancelled) {0}", detail);
+    }
+
+    private static void recordUploadFailed(
+            String examiner, String caseId, GatewayUploadException e, long clientRoundTripMs) {
+        String ex = examiner != null ? examiner : "";
+        String cid = caseId != null ? caseId : "";
+        String friendly = summarizeGatewayUploadFailure(e);
+        String detail =
+                "caseId="
+                        + cid
+                        + " | errorKind="
+                        + e.getKind().name()
+                        + " | httpStatus="
+                        + e.getHttpStatus()
+                        + " | clientRoundTripMs="
+                        + clientRoundTripMs
+                        + " | operatorMessage="
+                        + friendly;
+        CaseEventRecorder.getInstance().addEvent("UPLOAD_FAILED", ex, detail);
+        LOGGER.log(
+                Level.WARNING,
+                "Gateway upload failed caseId={0} kind={1}: {2}",
+                new Object[] {cid, e.getKind(), friendly});
+        LOGGER.log(Level.FINE, "Gateway upload failed stack", e);
+    }
+
+    private static String formatUploadTimingLine(UploadResponse.UploadTiming t) {
+        if (t.hasCaseRegistryMs()) {
+            return NbBundle.getMessage(
+                    CaseDataExtractReportModule.class,
+                    "ReportModule.status.uploadTimingFull",
+                    t.getTotalMs(),
+                    t.getIntegrityMs(),
+                    t.getChainMs(),
+                    t.getCaseRegistryMs());
+        }
+        return NbBundle.getMessage(
+                CaseDataExtractReportModule.class,
+                "ReportModule.status.uploadTimingPartial",
+                t.getTotalMs(),
+                t.getIntegrityMs(),
+                t.getChainMs());
+    }
+
+    private static String summarizeGatewayUploadFailure(GatewayUploadException e) {
+        String raw = e.getMessage() != null ? e.getMessage() : "";
+        String lower = raw.toLowerCase(Locale.ROOT);
+        if (e.getHttpStatus() == 413
+                || lower.contains("entity too large")
+                || (lower.contains("too large") && lower.contains("body"))) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.payloadTooLarge");
+        }
+        if (e.getKind() == GatewayUploadException.Kind.DUPLICATE || lower.contains("already exists")) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.duplicate");
+        }
+        switch (e.getKind()) {
+            case CANCELLED:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.cancelled");
+            case TOKEN_EXPIRED:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.tokenExpired");
+            case TOKEN_CONSUMED:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.tokenConsumed");
+            case TIMEOUT:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.timeout");
+            case GATEWAY_UNREACHABLE:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.unreachable");
+            case CHAIN_UNAVAILABLE:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.chainUnavailable");
+            case FORBIDDEN:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.forbidden");
+            case AGGREGATE_MISMATCH:
+                return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.aggregate");
+            case BAD_REQUEST:
+                if (lower.contains("signingpassword") || lower.contains("signing password")) {
+                    return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.uploadErr.signing");
+                }
+                break;
+            default:
+                break;
+        }
+        GatewayError ge = e.getGatewayError();
+        if (ge != null && ge.getError() != null && !ge.getError().isBlank()) {
+            return ge.getError();
+        }
+        if (e.getHttpStatus() > 0) {
+            return NbBundle.getMessage(
+                    CaseDataExtractReportModule.class,
+                    "ReportModule.uploadErr.http",
+                    e.getHttpStatus(),
+                    raw.isEmpty() ? e.getKind().name() : abbreviateOperatorMessage(raw, 220));
+        }
+        return abbreviateOperatorMessage(raw.isEmpty() ? e.getKind().name() : raw, 280);
+    }
+
+    private static String abbreviateOperatorMessage(String s, int max) {
+        if (s.length() <= max) {
+            return s;
+        }
+        return s.substring(0, max - 1) + "…";
     }
 
     private static void collectFiles(List<Content> dataSources, SleuthkitCase skCase, List<AbstractFile> out) throws TskCoreException {

@@ -27,6 +27,7 @@ public final class GatewayClientTest {
         test401TokenExpired();
         test409Duplicate();
         test503ChainUnavailable();
+        testUploadClientTimingS4_7();
         testPingOk();
         System.out.println("GatewayClientTest: all assertions passed.");
     }
@@ -211,6 +212,67 @@ public final class GatewayClientTest {
             }
         } finally {
             srv.stop(0);
+        }
+    }
+
+    private static void testUploadClientTimingS4_7() throws Exception {
+        String body =
+                "{\"indexHash\":\"0x01\",\"recordHash\":\"0x02\",\"txHash\":\"0x03\",\"blockNumber\":1}";
+        HttpServer srv = mockUploadServer(200, body);
+        try {
+            int port = srv.getAddress().getPort();
+            UploadClientTiming timing = new UploadClientTiming();
+            UploadResponse res =
+                    new GatewayClient()
+                            .uploadCase(
+                                    "http://127.0.0.1:" + port,
+                                    new UploadRequest("c", "e", "h", "t", "{}"),
+                                    "tok",
+                                    null,
+                                    false,
+                                    null,
+                                    null,
+                                    timing);
+            assertEq("0x03", res.getTxHash());
+            if (timing.getUploadStartedAt() == null || timing.getUploadResponseAt() == null) {
+                throw new AssertionError("S4.7 timing instants must be set");
+            }
+            if (timing.getClientRoundTripMs() < 0) {
+                throw new AssertionError("negative RTT");
+            }
+            if (!timing.getUploadResponseAt().equals(timing.getUploadStartedAt())
+                    && timing.getUploadResponseAt().isBefore(timing.getUploadStartedAt())) {
+                throw new AssertionError("end before start");
+            }
+        } finally {
+            srv.stop(0);
+        }
+        HttpServer srv401 = mockUploadServer(401, "{\"error\":\"no\"}");
+        try {
+            int port = srv401.getAddress().getPort();
+            UploadClientTiming timing = new UploadClientTiming();
+            try {
+                new GatewayClient()
+                        .uploadCase(
+                                "http://127.0.0.1:" + port,
+                                new UploadRequest("c", "e", "h", "t", "{}"),
+                                "tok",
+                                null,
+                                false,
+                                null,
+                                null,
+                                timing);
+                throw new AssertionError("expected 401");
+            } catch (GatewayUploadException e) {
+                if (timing.getUploadStartedAt() == null) {
+                    throw new AssertionError("S4.7 start on failure");
+                }
+                if (timing.getUploadResponseAt() == null) {
+                    throw new AssertionError("S4.7 end on failure");
+                }
+            }
+        } finally {
+            srv401.stop(0);
         }
     }
 
