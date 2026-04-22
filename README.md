@@ -24,6 +24,10 @@ that monitors plugin activity and verifies image-file integrity on every case op
   physical image file(s) in a background thread and compares the result
   against the last exported report; the status window highlights any mismatch
   as a potential tampering warning
+- **Blockchain upload (optional)** — After the JSON report is saved, the module
+  can `POST` the export to **api-gateway** (`/api/upload`) with a one-time token;
+  results are written to `upload_receipt.json`, appended to the main JSON as
+  `uploadStatus`, and shown in **Case Data Extract Status → Upload Status**
 
 ---
 
@@ -111,10 +115,12 @@ flowchart LR
   subgraph Chain[FISCO BCOS]
     C[CRUD + CaseRegistry]
   end
-  A -->|export / ops| G
+  A -->|"case JSON export + optional POST /api/upload"| G
   D -->|requests + session cookie| G
   G --> C
 ```
+
+*(Solid edges reflect the integrated paths in this repo: examiner-side export and optional upload to the gateway are implemented; judge-web remains HTTP-only to the gateway.)*
 
 ### Generating a report
 
@@ -127,6 +133,22 @@ The report is written to:
 ```
 <case dir>/Reports/<run label>/CaseDataExtract/case_data_extract.json
 ```
+
+### Blockchain upload from Autopsy
+
+When **upload** is enabled in the report module settings and a valid **gateway URL**
+and **OTP** are supplied, the plugin uploads the freshly written JSON to
+**api-gateway** and records:
+
+| Output | Location |
+|--------|----------|
+| Gateway receipt (timing, `requestId`, tx hashes, …) | `.../CaseDataExtract/upload_receipt.json` |
+| Upload summary on the main report | `uploadStatus` / `uploadDetail` at end of `case_data_extract.json` |
+| Monitor snapshot | **Window → Case Data Extract Status → Upload Status** |
+
+**Thesis / evidence pack:** `docs/evidence/autopsy-upload/` (`mapping.md`, `samples/`, `screens/`).
+
+**Deploy the plugin on Autopsy 4.22.x:** use the **core JAR patch** (`build-patch-core.bat` → run **`install-patch-core.bat`** as Administrator), not the standard NBM-only flow — see `.cursor/rules/autopsy-core-patch-deployment.mdc`.
 
 **Report structure:**
 ```json

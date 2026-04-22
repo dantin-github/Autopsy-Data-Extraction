@@ -196,3 +196,61 @@ test('POST /api/upload with X-Debug-Timing: 1 returns requestId, timing, blockTi
   assert.strictEqual(typeof res.body.timing.totalMs, 'number');
   assert.strictEqual(res.body.blockTimestampUtc, '2026-01-15T12:00:42.000Z');
 });
+
+test('POST /api/upload X_AUTH_TOKEN_SINGLE_USE=0 same token → 200 twice (different caseId)', async () => {
+  const prev = process.env.X_AUTH_TOKEN_SINGLE_USE;
+  process.env.X_AUTH_TOKEN_SINGLE_USE = '0';
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/middleware/requirePoliceToken')];
+  delete require.cache[require.resolve('../src/routes/upload')];
+  delete require.cache[require.resolve('../src/app')];
+
+  try {
+    const tokenStore = require('../src/services/tokenStore');
+    tokenStore.clear();
+    tokenStore.issue('u-police-1', 'reuseuploadtokenreuseupload00', 60_000);
+
+    const t = 'reuseuploadtokenreuseupload00';
+    const c1 = `UPLOAD-REUSE-1-${Date.now()}`;
+    const c2 = `UPLOAD-REUSE-2-${Date.now()}`;
+    const j1 = buildVerifiedCaseJson(c1);
+    const j2 = buildVerifiedCaseJson(c2);
+
+    const { createApp } = require('../src/app');
+    const app = createApp();
+
+    await request(app)
+      .post('/api/upload')
+      .set('X-Auth-Token', t)
+      .send({
+        caseId: c1,
+        examiner: 'police',
+        aggregateHash: JSON.parse(j1).aggregateHash,
+        generatedAt: '2026-01-15T12:00:00.000Z',
+        caseJson: j1
+      })
+      .expect(200);
+
+    await request(app)
+      .post('/api/upload')
+      .set('X-Auth-Token', t)
+      .send({
+        caseId: c2,
+        examiner: 'police',
+        aggregateHash: JSON.parse(j2).aggregateHash,
+        generatedAt: '2026-01-15T12:00:01.000Z',
+        caseJson: j2
+      })
+      .expect(200);
+  } finally {
+    if (prev === undefined) {
+      delete process.env.X_AUTH_TOKEN_SINGLE_USE;
+    } else {
+      process.env.X_AUTH_TOKEN_SINGLE_USE = prev;
+    }
+    delete require.cache[require.resolve('../src/config')];
+    delete require.cache[require.resolve('../src/middleware/requirePoliceToken')];
+    delete require.cache[require.resolve('../src/routes/upload')];
+    delete require.cache[require.resolve('../src/app')];
+  }
+});

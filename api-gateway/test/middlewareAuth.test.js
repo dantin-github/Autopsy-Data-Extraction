@@ -54,6 +54,37 @@ test('__police-only: valid token → 200, second request → 401', async () => {
   await request(app).get('/__police-only').set('X-Auth-Token', 'test-otp-token-16hex').expect(401);
 });
 
+test('__police-only: X_AUTH_TOKEN_SINGLE_USE=0 same token → 200 twice', async () => {
+  const prev = process.env.X_AUTH_TOKEN_SINGLE_USE;
+  process.env.X_AUTH_TOKEN_SINGLE_USE = '0';
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/middleware/requirePoliceToken')];
+  delete require.cache[require.resolve('../src/app')];
+
+  try {
+    const tokenStore = require('../src/services/tokenStore');
+    tokenStore.clear();
+    tokenStore.issue('u-police-1', 'reusable-otp-16b-hex-01', 60_000);
+
+    const { createApp } = require('../src/app');
+    const app = createApp();
+    const tok = 'reusable-otp-16b-hex-01';
+    const a = await request(app).get('/__police-only').set('X-Auth-Token', tok).expect(200);
+    const b = await request(app).get('/__police-only').set('X-Auth-Token', tok).expect(200);
+    assert.strictEqual(a.body.userId, 'u-police-1');
+    assert.strictEqual(b.body.userId, 'u-police-1');
+  } finally {
+    if (prev === undefined) {
+      delete process.env.X_AUTH_TOKEN_SINGLE_USE;
+    } else {
+      process.env.X_AUTH_TOKEN_SINGLE_USE = prev;
+    }
+    delete require.cache[require.resolve('../src/config')];
+    delete require.cache[require.resolve('../src/middleware/requirePoliceToken')];
+    delete require.cache[require.resolve('../src/app')];
+  }
+});
+
 test('__judge-only: no session → 401', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();

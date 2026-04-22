@@ -100,18 +100,45 @@ router.post('/login', async (req, res, next) => {
 
     tokenStore.issue(user.userId, otp, ttl);
 
+    const ttlMin = Math.round(ttl / 60000);
+    const singleUse = config.xAuthTokenSingleUse;
+    const subject = singleUse
+      ? 'Case Gateway — code (single use per API call with X-Auth-Token)'
+      : 'Case Gateway — code (reuse with X-Auth-Token until expiry)';
+
+    const textBody = [
+      'Your Case Gateway one-time code (OTP) is:',
+      '',
+      otp,
+      '',
+      `This code expires at ${expiresAt} (about ${ttlMin} minutes from when it was sent).`,
+      '',
+      singleUse
+        ? [
+            'How to use (MODE: single-use for API):',
+            '- Put this value in the X-Auth-Token header. The first successful request that requires it (e.g. POST /api/upload) will use it up.',
+            '- For another upload, run POST /login again to get a new code.',
+            '- POST /api/auth/police-otp (session login) also consumes this code in one step — after that, X-Auth-Token will no longer work for this code.',
+            '',
+            'If you see this message in the mail, your gateway is in single-use API token mode (default), or X_AUTH_TOKEN_SINGLE_USE is unset/1/true.'
+          ].join('\n')
+        : [
+            'How to use (MODE: reuse until expiry for API):',
+            '- You may use the same value in the X-Auth-Token header on multiple requests (e.g. several POST /api/upload) until the expiry time above.',
+            '- The validity window is controlled by OTP_TTL_MS in server config (same as this email’s expiry).',
+            '- POST /api/auth/police-otp still consumes the code in one step when exchanging for a browser session — after that, this code is gone.',
+            '',
+            'If you see this message in the mail, your gateway has X_AUTH_TOKEN_SINGLE_USE=0 (or false/no).'
+          ].join('\n'),
+      '',
+      'Do not share this code.'
+    ].join('\n');
+
     try {
       await mailer.send({
         to: email,
-        subject: 'Case Gateway — one-time code',
-        text: [
-          'Your Case Gateway one-time code (OTP) is:',
-          '',
-          otp,
-          '',
-          `This code expires at ${expiresAt} (${Math.round(ttl / 60000)} minutes).`,
-          'Do not share this code.'
-        ].join('\n')
+        subject,
+        text: textBody
       });
     } catch (err) {
       return next(err);
@@ -122,7 +149,8 @@ router.post('/login', async (req, res, next) => {
       expiresAt,
       userId: user.userId,
       username: user.username,
-      role: user.role
+      role: user.role,
+      xAuthTokenSingleUse: singleUse
     });
   }
 

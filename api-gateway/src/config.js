@@ -55,6 +55,19 @@ const otpTtlMsRaw = Number(process.env.OTP_TTL_MS);
 const otpTtlMs =
   Number.isFinite(otpTtlMsRaw) && otpTtlMsRaw > 0 ? otpTtlMsRaw : 2 * 60 * 60 * 1000;
 
+/**
+ * When true (default), `X-Auth-Token` is removed from the store on first successful use (`consume`).
+ * When false, validation uses `peek` until `OTP_TTL_MS` — same OTP can be reused for routes using
+ * `requirePoliceToken` (e.g. multiple POST /api/upload). `POST /api/auth/police-otp` always consumes.
+ * Env: set `X_AUTH_TOKEN_SINGLE_USE=0` (or `false` / `no`) to allow reuse within TTL.
+ */
+const xAuthTokenSingleUseEnv = process.env.X_AUTH_TOKEN_SINGLE_USE;
+let xAuthTokenSingleUse = true;
+if (xAuthTokenSingleUseEnv != null && String(xAuthTokenSingleUseEnv).trim() !== '') {
+  const s = String(xAuthTokenSingleUseEnv).toLowerCase().trim();
+  xAuthTokenSingleUse = !['0', 'false', 'no'].includes(s);
+}
+
 /** Browser session cookie (`gw.sid`) lifetime for judge and police after login. Default 2h. */
 const sessionCookieMaxAgeMsRaw = Number(process.env.SESSION_MAX_AGE_MS);
 const sessionCookieMaxAgeMs =
@@ -180,6 +193,7 @@ module.exports = {
   smtpPass,
   smtpFrom,
   otpTtlMs,
+  xAuthTokenSingleUse,
   recordStorePath,
   fiscoConfigPath,
   caseHashTableName,

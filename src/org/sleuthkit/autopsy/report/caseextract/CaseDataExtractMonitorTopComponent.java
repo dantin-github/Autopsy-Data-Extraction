@@ -14,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTabbedPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
@@ -37,6 +38,7 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
     private final DefaultTableModel tableModel;
     private final DefaultTableModel integrityModel;
     private final DefaultTableModel uploadModel;
+    private final JTable uploadTable;
     private final JLabel uploadEmptyLabel;
     private final JLabel uploadBannerLabel;
     private final JScrollPane uploadScroll;
@@ -105,13 +107,23 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
                         return false;
                     }
                 };
-        JTable uploadTable = new JTable(uploadModel);
+        uploadTable = new JTable(uploadModel);
         uploadTable.setAutoCreateRowSorter(false);
-        uploadTable.getColumnModel().getColumn(0).setPreferredWidth(160);
-        uploadTable.getColumnModel().getColumn(1).setPreferredWidth(420);
+        // Full-width values (hashes): no column squeeze; horizontal scroll + cell copy (Ctrl+C)
+        uploadTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        uploadTable.setCellSelectionEnabled(true);
+        uploadTable.setRowSelectionAllowed(false);
+        uploadTable.setColumnSelectionAllowed(false);
+        uploadTable.getTableHeader().setReorderingAllowed(false);
+        uploadTable.getColumnModel().getColumn(0).setPreferredWidth(200);
+        uploadTable.getColumnModel().getColumn(0).setMinWidth(120);
+        uploadTable.getColumnModel().getColumn(1).setPreferredWidth(900);
+        uploadTable.getColumnModel().getColumn(1).setMinWidth(400);
         ValueCellRenderer uploadValueRenderer = new ValueCellRenderer();
         uploadTable.getColumnModel().getColumn(1).setCellRenderer(uploadValueRenderer);
         uploadScroll = new JScrollPane(uploadTable);
+        uploadScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        uploadScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         uploadPanel.add(uploadScroll, BorderLayout.CENTER);
         tabs.addTab(
                 NbBundle.getMessage(CaseDataExtractMonitorTopComponent.class, "Monitor.uploadTab.title"),
@@ -263,6 +275,20 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
         for (String[] row : buildUploadRows(u)) {
             uploadModel.addRow(row);
         }
+        resizeUploadValueColumn();
+    }
+
+    /** Value column wide enough for full hex strings; cap to keep UI bounded. */
+    private void resizeUploadValueColumn() {
+        int maxChars = 8;
+        for (int r = 0; r < uploadModel.getRowCount(); r++) {
+            Object v = uploadModel.getValueAt(r, 1);
+            if (v != null) {
+                maxChars = Math.max(maxChars, v.toString().length());
+            }
+        }
+        int w = Math.min(2000, Math.max(400, maxChars * 8 + 40));
+        uploadTable.getColumnModel().getColumn(1).setPreferredWidth(w);
     }
 
     /** Phase 5 S5.3: error detail rows only for failed uploads (not success / cancelled / skipped). */
@@ -339,7 +365,7 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
         return n == null ? "N/A" : String.valueOf(n);
     }
 
-    /** Ellipsis + full value in tooltip for long hex / strings (S5.2). */
+    /** Full value on one line; monospace for hex hashes (copy via cell select + Ctrl+C). */
     private static final class ValueCellRenderer extends DefaultTableCellRenderer {
 
         @Override
@@ -347,12 +373,13 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
                 JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             String full = value == null ? "" : value.toString();
-            if (!isSelected && !hasFocus && full.startsWith("0x") && full.length() > 22) {
-                setText(full.substring(0, 12) + "…" + full.substring(full.length() - 8));
-                setToolTipText(full);
+            setText(full);
+            setToolTipText(null);
+            Font base = table.getFont();
+            if (full.startsWith("0x") && full.length() > 2) {
+                setFont(new Font(Font.MONOSPACED, Font.PLAIN, base.getSize()));
             } else {
-                setText(full);
-                setToolTipText(full.length() > 64 ? full : null);
+                setFont(base);
             }
             return this;
         }

@@ -25,7 +25,8 @@ Police / judge demo accounts are defined in **`data/users.example.json`** (passw
 |----------|---------|
 | `SESSION_SECRET` | Required. Session signing. |
 | `MAIL_DRY_RUN` | `1` = log OTP in server output, no SMTP. |
-| `OTP_TTL_MS` | Police OTP lifetime (default 2 hours). |
+| `OTP_TTL_MS` | Police OTP lifetime (default 2 hours). Reuse window for **`X-Auth-Token`** when **`X_AUTH_TOKEN_SINGLE_USE=0`**. |
+| `X_AUTH_TOKEN_SINGLE_USE` | Default / `1` / `true`: **`X-Auth-Token` is single-use** (`consume`). Set **`0`** / **`false`** / **`no`** so the same OTP works for every request until **`OTP_TTL_MS`** (`peek`). **`POST /api/auth/police-otp` always consumes** the OTP. In reuse mode, a stolen token works until expiry—treat like a short-lived bearer secret. Police **OTP email subject and body** state which mode is active; **`POST /login`** returns **`xAuthTokenSingleUse`** in JSON. |
 | `RECORD_STORE_PATH` | Private JSON store (default: `%USERPROFILE%\.case_record_store.json`). |
 | `JSON_BODY_LIMIT` | Max JSON body for Express (default **`100mb`**). Full Autopsy exports exceed the old 2mb cap. |
 | Chain | `conf/fisco-config.json` + `conf/accounts/gateway.pem` — see `.env.example`. |

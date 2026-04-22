@@ -53,9 +53,39 @@ test('POST /login police returns 200 otp_sent', async () => {
   assert.strictEqual(res.body.status, 'otp_sent');
   assert.strictEqual(res.body.role, 'police');
   assert.strictEqual(res.body.username, 'officer1');
+  assert.strictEqual(res.body.xAuthTokenSingleUse, true);
   assert.ok(res.body.expiresAt);
   assert.ok(!Number.isNaN(Date.parse(res.body.expiresAt)));
   assert.strictEqual(tokenStore.size(), 1);
+});
+
+test('POST /login police otp_sent with X_AUTH_TOKEN_SINGLE_USE=0 sets xAuthTokenSingleUse false', async () => {
+  const prev = process.env.X_AUTH_TOKEN_SINGLE_USE;
+  process.env.X_AUTH_TOKEN_SINGLE_USE = '0';
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/routes/auth')];
+  delete require.cache[require.resolve('../src/app')];
+
+  try {
+    const tokenStore = require('../src/services/tokenStore');
+    tokenStore.clear();
+    const { createApp } = require('../src/app');
+    const app = createApp();
+    const res = await request(app)
+      .post('/login')
+      .send({ username: 'officer1', password: '1' })
+      .expect(200);
+    assert.strictEqual(res.body.xAuthTokenSingleUse, false);
+  } finally {
+    if (prev === undefined) {
+      delete process.env.X_AUTH_TOKEN_SINGLE_USE;
+    } else {
+      process.env.X_AUTH_TOKEN_SINGLE_USE = prev;
+    }
+    delete require.cache[require.resolve('../src/config')];
+    delete require.cache[require.resolve('../src/routes/auth')];
+    delete require.cache[require.resolve('../src/app')];
+  }
 });
 
 test('POST /api/auth/police-otp exchanges OTP for police session', async () => {
