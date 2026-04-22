@@ -418,6 +418,8 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             } catch (IOException ioe) {
                 LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
             }
+            CaseEventRecorder.getInstance()
+                    .setLastUpload(UploadSnapshot.fromSkipped(caseId, "invalid_gateway_url"));
             return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedBadUrl");
         }
         String token = cfg.getOneTimeToken() != null ? cfg.getOneTimeToken().trim() : "";
@@ -427,6 +429,8 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             } catch (IOException ioe) {
                 LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
             }
+            CaseEventRecorder.getInstance()
+                    .setLastUpload(UploadSnapshot.fromSkipped(caseId, "missing_token"));
             return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoToken");
         }
         if (caseId == null || caseId.isBlank()) {
@@ -435,6 +439,8 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             } catch (IOException ioe) {
                 LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload skipped)", ioe);
             }
+            CaseEventRecorder.getInstance()
+                    .setLastUpload(UploadSnapshot.fromSkipped("", "missing_case_id"));
             return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoCaseId");
         }
         String generatedAt =
@@ -527,6 +533,10 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
                     msg += " " + formatUploadTimingLine(resp.getTiming());
                 }
                 recordUploadOk(examiner, caseId, resp, clientRoundTripMs);
+                CaseEventRecorder.getInstance()
+                        .setLastUpload(
+                                UploadSnapshot.fromSuccess(
+                                        caseId, uploadStartedAt, uploadResponseAt, clientRoundTripMs, resp));
                 return msg;
             } catch (GatewayUploadException e) {
                 Instant uploadStartedAt = clientTiming.getUploadStartedAt();
@@ -548,6 +558,10 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
                         LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload cancelled)", ioe);
                     }
                     recordUploadCancelled(examiner, caseId, clientRoundTripMs);
+                    CaseEventRecorder.getInstance()
+                            .setLastUpload(
+                                    UploadSnapshot.fromCancelled(
+                                            caseId, uploadStartedAt, uploadResponseAt, clientRoundTripMs));
                     return NbBundle.getMessage(
                             CaseDataExtractReportModule.class, "ReportModule.status.uploadCancelled");
                 }
@@ -563,6 +577,10 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
                     LOGGER.log(Level.WARNING, "Could not patch case_data_extract.json (upload failed)", ioe);
                 }
                 recordUploadFailed(examiner, caseId, e, clientRoundTripMs);
+                CaseEventRecorder.getInstance()
+                        .setLastUpload(
+                                UploadSnapshot.fromFailure(
+                                        caseId, uploadStartedAt, uploadResponseAt, clientRoundTripMs, e));
                 String detail = summarizeGatewayUploadFailure(e);
                 return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadFailed", detail);
             }

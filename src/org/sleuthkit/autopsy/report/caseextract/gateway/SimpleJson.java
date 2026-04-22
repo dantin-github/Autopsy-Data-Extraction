@@ -4,9 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Minimal JSON object parser (strings, numbers, nested objects). For gateway DTO parsing only.
+ * Minimal JSON object parser (strings, numbers, nested objects). For gateway DTOs and receipt parsing (S5.1).
  */
-final class SimpleJson {
+public final class SimpleJson {
 
     private final String s;
     private int pos;
@@ -15,7 +15,7 @@ final class SimpleJson {
         this.s = s;
     }
 
-    static Map<String, Object> parseObject(String json) throws JsonParseException {
+    public static Map<String, Object> parseObject(String json) throws JsonParseException {
         if (json == null) {
             throw new JsonParseException("null input");
         }
@@ -169,8 +169,8 @@ final class SimpleJson {
         pos++;
     }
 
-    static final class JsonParseException extends Exception {
-        JsonParseException(String m) {
+    public static final class JsonParseException extends Exception {
+        public JsonParseException(String m) {
             super(m);
         }
     }

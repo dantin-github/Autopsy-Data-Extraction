@@ -2,14 +2,20 @@ package org.sleuthkit.autopsy.report.caseextract;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import org.openide.windows.TopComponent;
 import org.openide.util.NbBundle;
@@ -30,6 +36,10 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
     private final JLabel summaryLabel;
     private final DefaultTableModel tableModel;
     private final DefaultTableModel integrityModel;
+    private final DefaultTableModel uploadModel;
+    private final JLabel uploadEmptyLabel;
+    private final JLabel uploadBannerLabel;
+    private final JScrollPane uploadScroll;
     private volatile boolean refreshRunning;
     private Thread refreshThread;
 
@@ -72,6 +82,40 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
         integrityTable.getColumnModel().getColumn(3).setPreferredWidth(300);
         integrityTable.getColumnModel().getColumn(4).setPreferredWidth(300);
         tabs.addTab("Image Integrity", new JScrollPane(integrityTable));
+
+        // Tab 3: Upload Status (Phase 5 S5.2 / S5.3) — mirrors upload_receipt.json / UploadSnapshot
+        JPanel uploadPanel = new JPanel(new BorderLayout(0, 4));
+        JPanel uploadNorth = new JPanel();
+        uploadNorth.setLayout(new BoxLayout(uploadNorth, BoxLayout.Y_AXIS));
+        uploadEmptyLabel = new JLabel(" ");
+        uploadEmptyLabel.setFont(uploadEmptyLabel.getFont().deriveFont(Font.ITALIC, 12f));
+        uploadEmptyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        uploadNorth.add(uploadEmptyLabel);
+        uploadBannerLabel = new JLabel(" ");
+        uploadBannerLabel.setFont(uploadBannerLabel.getFont().deriveFont(Font.BOLD, 12f));
+        uploadBannerLabel.setForeground(new Color(0xC0, 0x00, 0x00));
+        uploadBannerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        uploadBannerLabel.setVisible(false);
+        uploadNorth.add(uploadBannerLabel);
+        uploadPanel.add(uploadNorth, BorderLayout.NORTH);
+        uploadModel =
+                new DefaultTableModel(new String[] {"Field", "Value"}, 0) {
+                    @Override
+                    public boolean isCellEditable(int r, int c) {
+                        return false;
+                    }
+                };
+        JTable uploadTable = new JTable(uploadModel);
+        uploadTable.setAutoCreateRowSorter(false);
+        uploadTable.getColumnModel().getColumn(0).setPreferredWidth(160);
+        uploadTable.getColumnModel().getColumn(1).setPreferredWidth(420);
+        ValueCellRenderer uploadValueRenderer = new ValueCellRenderer();
+        uploadTable.getColumnModel().getColumn(1).setCellRenderer(uploadValueRenderer);
+        uploadScroll = new JScrollPane(uploadTable);
+        uploadPanel.add(uploadScroll, BorderLayout.CENTER);
+        tabs.addTab(
+                NbBundle.getMessage(CaseDataExtractMonitorTopComponent.class, "Monitor.uploadTab.title"),
+                uploadPanel);
 
         add(tabs, BorderLayout.CENTER);
         associateLookup(Lookups.singleton(this));
@@ -140,10 +184,13 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
 
         List<CaseEventRecorder.OperationEntry> recent = rec.getRecentEvents(50);
         List<CaseEventRecorder.ImageIntegrityResult> integrity = rec.getIntegrityResults();
+        UploadSnapshot uploadSnap = rec.getLastUpload();
 
         final String fs = statusText, fc = captureText, fsum = summaryText;
         final List<CaseEventRecorder.OperationEntry> opsList = recent;
         final List<CaseEventRecorder.ImageIntegrityResult> intList = integrity;
+        final UploadSnapshot uploadFinal = uploadSnap;
+        final boolean hasCaseFinal = hasCase;
 
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText(fs);
@@ -181,7 +228,134 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
                     });
                 }
             }
+
+            refreshUploadTab(uploadFinal, hasCaseFinal);
         });
+    }
+
+    private void refreshUploadTab(UploadSnapshot u, boolean hasCase) {
+        uploadBannerLabel.setVisible(false);
+        uploadBannerLabel.setText(" ");
+        if (!hasCase) {
+            uploadEmptyLabel.setText(
+                    NbBundle.getMessage(CaseDataExtractMonitorTopComponent.class, "Monitor.upload.noCase"));
+            uploadEmptyLabel.setVisible(true);
+            uploadScroll.setVisible(false);
+            uploadModel.setRowCount(0);
+            return;
+        }
+        if (u == null) {
+            uploadEmptyLabel.setText(
+                    NbBundle.getMessage(CaseDataExtractMonitorTopComponent.class, "Monitor.upload.empty"));
+            uploadEmptyLabel.setVisible(true);
+            uploadScroll.setVisible(false);
+            uploadModel.setRowCount(0);
+            return;
+        }
+        uploadEmptyLabel.setVisible(false);
+        uploadScroll.setVisible(true);
+        if (uploadFailed(u) && isGatewayUnreachableKind(u.getErrorKind())) {
+            uploadBannerLabel.setText(
+                    NbBundle.getMessage(CaseDataExtractMonitorTopComponent.class, "Monitor.upload.banner.unreachable"));
+            uploadBannerLabel.setVisible(true);
+        }
+        uploadModel.setRowCount(0);
+        for (String[] row : buildUploadRows(u)) {
+            uploadModel.addRow(row);
+        }
+    }
+
+    /** Phase 5 S5.3: error detail rows only for failed uploads (not success / cancelled / skipped). */
+    private static boolean uploadFailed(UploadSnapshot u) {
+        return u != null && "failed".equalsIgnoreCase(u.getStatus());
+    }
+
+    private static boolean isGatewayUnreachableKind(String errorKind) {
+        return errorKind != null && "GATEWAY_UNREACHABLE".equalsIgnoreCase(errorKind.trim());
+    }
+
+    private static List<String[]> buildUploadRows(UploadSnapshot u) {
+        List<String[]> rows = new ArrayList<>(24);
+        rows.add(new String[] {"Status", nz(u.getStatus())});
+        rows.add(new String[] {"Case ID", nz(u.getCaseId())});
+        rows.add(new String[] {"Upload started (UTC)", fmtInstant(u.getUploadStartedAt())});
+        rows.add(new String[] {"Upload response (UTC)", fmtInstant(u.getUploadResponseAt())});
+        rows.add(new String[] {"Client round-trip (ms)", String.valueOf(u.getClientRoundTripMs())});
+        rows.add(new String[] {"Request ID", naOrString(u.getRequestId())});
+        UploadSnapshot.Timing t = u.getTiming();
+        boolean timingNa = isTimingEmpty(t);
+        rows.add(
+                new String[] {
+                    "Timing — integrity (ms)", timingNa ? "N/A" : String.valueOf(t.getIntegrityMs())
+                });
+        rows.add(new String[] {"Timing — chain (ms)", timingNa ? "N/A" : String.valueOf(t.getChainMs())});
+        rows.add(new String[] {"Timing — total (ms)", timingNa ? "N/A" : String.valueOf(t.getTotalMs())});
+        rows.add(
+                new String[] {
+                    "Timing — CaseRegistry (ms)",
+                    timingNa || !t.hasCaseRegistryMs() ? "N/A" : String.valueOf(t.getCaseRegistryMs())
+                });
+        rows.add(new String[] {"Block timestamp (UTC)", naOrString(u.getBlockTimestampUtc())});
+        rows.add(new String[] {"Index hash", naOrString(u.getIndexHash())});
+        rows.add(new String[] {"Record hash", naOrString(u.getRecordHash())});
+        rows.add(new String[] {"Table tx hash", naOrString(u.getTxHash())});
+        rows.add(new String[] {"Block number", naOrLong(u.getBlockNumber())});
+        rows.add(new String[] {"CaseRegistry tx hash", naOrString(u.getCaseRegistryTxHash())});
+        rows.add(new String[] {"CaseRegistry block number", naOrLong(u.getCaseRegistryBlockNumber())});
+        if (uploadFailed(u)) {
+            rows.add(new String[] {"Error kind", naOrString(u.getErrorKind())});
+            rows.add(new String[] {"Error message", naOrString(u.getErrorMessage())});
+            rows.add(
+                    new String[] {
+                        "HTTP status", u.getHttpStatus() == 0 ? "N/A" : String.valueOf(u.getHttpStatus())
+                    });
+        }
+        return rows;
+    }
+
+    private static boolean isTimingEmpty(UploadSnapshot.Timing t) {
+        return t.getIntegrityMs() == 0
+                && t.getChainMs() == 0
+                && t.getTotalMs() == 0
+                && !t.hasCaseRegistryMs();
+    }
+
+    private static String fmtInstant(Instant i) {
+        if (i == null) {
+            return "N/A";
+        }
+        return DateTimeFormatter.ISO_INSTANT.format(i);
+    }
+
+    private static String nz(String s) {
+        return s == null || s.isEmpty() ? "N/A" : s;
+    }
+
+    private static String naOrString(String s) {
+        return s == null || s.isEmpty() ? "N/A" : s;
+    }
+
+    private static String naOrLong(Long n) {
+        return n == null ? "N/A" : String.valueOf(n);
+    }
+
+    /** Ellipsis + full value in tooltip for long hex / strings (S5.2). */
+    private static final class ValueCellRenderer extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            String full = value == null ? "" : value.toString();
+            if (!isSelected && !hasFocus && full.startsWith("0x") && full.length() > 22) {
+                setText(full.substring(0, 12) + "…" + full.substring(full.length() - 8));
+                setToolTipText(full);
+            } else {
+                setText(full);
+                setToolTipText(full.length() > 64 ? full : null);
+            }
+            return this;
+        }
     }
 
     private static String formatTime(long timeMs) {

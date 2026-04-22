@@ -16,6 +16,7 @@ patch/org-sleuthkit-autopsy-core-patched.jar
 # The original Autopsy core JAR is copyrighted Sleuth Kit software
 # and must NOT be distributed.  Obtain it from your Autopsy installation.
 patch/core.jar
+patch/backup/
 
 # -------------------------------------------------------
 # Temporary backup directories created during development

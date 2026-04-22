@@ -89,6 +89,26 @@
         </java>
     </target>
 
+    <target name="test-upload-snapshot" depends="compile-test-all" description="Run UploadSnapshotTest (S5.1)">
+        <java classname="org.sleuthkit.autopsy.report.caseextract.UploadSnapshotTest" fork="true" failonerror="true">
+            <classpath>
+                <pathelement path="${build.dir}/classes"/>
+                <pathelement path="${build.test.classes}"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="verify-upload-restore" depends="compile-test-all" description="Compare loadLatestFromCaseReports to newest receipt (-Dcase.dir=...)">
+        <fail unless="case.dir" message="Set -Dcase.dir=absolute\path\to\autopsy\case\folder"/>
+        <java classname="org.sleuthkit.autopsy.report.caseextract.UploadSnapshotRestoreVerifier" fork="true" failonerror="true">
+            <sysproperty key="case.dir" value="${case.dir}"/>
+            <classpath>
+                <pathelement path="${build.dir}/classes"/>
+                <pathelement path="${build.test.classes}"/>
+            </classpath>
+        </java>
+    </target>
+
     <target name="-do-jar" depends="compile">
         <mkdir dir="${dist.dir}"/>
         <jar destfile="${dist.jar}" basedir="${build.dir}/classes" manifest="${src.dir}/META-INF/MANIFEST.MF"/>

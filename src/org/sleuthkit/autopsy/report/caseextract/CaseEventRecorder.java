@@ -33,13 +33,16 @@ import org.sleuthkit.datamodel.TskCoreException;
  * Records case-related events (operation log) and persists them to the case directory.
  * Registers a Case event listener on module load, writing operation type, timestamp,
  * and current examiner to a JSON file.
+ *
+ * <p>Phase 5 S5.1: {@link #getLastUpload()} holds the latest upload snapshot for the Monitor tab; on case open it is
+ * restored from the newest {@code Reports/.../CaseDataExtract/upload_receipt.json} when present.
  */
 public final class CaseEventRecorder {
 
     private static final Logger LOGGER = Logger.getLogger(CaseEventRecorder.class.getName());
     private static final String EVENTS_FILENAME = "case_extract_events.json";
     private static final String REPORT_DIR = "CaseDataExtract";
-    private static final String REPORT_FILENAME = "case_data_extract.json";
+    private static final String REPORT_FILENAME = UploadSnapshot.CASE_DATA_EXTRACT_REPORT_JSON;
 
     // ---------------------------------------------------------------
     // Integrity check result for one image data source
@@ -91,6 +94,9 @@ public final class CaseEventRecorder {
     /** Integrity check results – one entry per Image data source. */
     private final List<ImageIntegrityResult> integrityResults = new CopyOnWriteArrayList<>();
     private volatile Thread integrityThread;
+
+    /** Latest upload outcome for the open case (volatile for UI readers). */
+    private volatile UploadSnapshot lastUpload;
 
     public static CaseEventRecorder getInstance() {
         if (instance == null) {
@@ -242,6 +248,8 @@ public final class CaseEventRecorder {
         events.add(new OperationEntry(System.currentTimeMillis(), "CASE_OPENED", examiner, detail));
         persistToCaseDirectory();
 
+        refreshLastUploadFromReceipts(caseDirectory);
+
         // Start image integrity check in background
         startIntegrityCheck(openedCase, caseDirectory);
     }
@@ -249,6 +257,28 @@ public final class CaseEventRecorder {
     void onCaseClosed() {
         currentCaseDir = null;
         events.clear();
+        lastUpload = null;
+    }
+
+    /**
+     * Phase 5 S5.1: snapshot of the most recent gateway upload (success, failed, cancelled, or skipped), aligned with
+     * {@code upload_receipt.json} when that file exists.
+     */
+    public UploadSnapshot getLastUpload() {
+        return lastUpload;
+    }
+
+    /** Called from the report module after each upload attempt (including skipped preflight). */
+    public void setLastUpload(UploadSnapshot snapshot) {
+        lastUpload = snapshot;
+    }
+
+    void refreshLastUploadFromReceipts(String caseDirectory) {
+        if (caseDirectory == null || caseDirectory.isEmpty()) {
+            lastUpload = null;
+            return;
+        }
+        lastUpload = UploadSnapshot.loadLatestFromCaseReports(caseDirectory);
     }
 
     private void loadFromCaseDirectory(String caseDir) {
