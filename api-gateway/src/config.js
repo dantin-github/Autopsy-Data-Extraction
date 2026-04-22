@@ -177,6 +177,30 @@ const uploadTimingInResponse = ['1', 'true', 'yes'].includes(
 const jsonBodyLimitRaw = String(process.env.JSON_BODY_LIMIT || '100mb').trim();
 const jsonBodyLimit = jsonBodyLimitRaw !== '' ? jsonBodyLimitRaw : '100mb';
 
+/** Gateway automation: police userId in users.json whose keystore signs CaseRegistry.execute after judge approve. */
+const executorUserIdRaw = process.env.EXECUTOR_USER_ID;
+const executorUserId =
+  executorUserIdRaw != null && String(executorUserIdRaw).trim() !== ''
+    ? String(executorUserIdRaw).trim()
+    : 'system-executor';
+
+/** Decrypts data/keystore/<executorUserId>.enc at runtime; empty until set in .env */
+const executorKeystorePasswordRaw = process.env.EXECUTOR_KEYSTORE_PASSWORD;
+const executorKeystorePassword =
+  executorKeystorePasswordRaw != null ? String(executorKeystorePasswordRaw) : '';
+
+/** Dedup + CRUD backlog for ProposalApproved → auto execute (default data/executor-cursor.json). */
+const executorCursorPathRaw = process.env.EXECUTOR_CURSOR_PATH;
+const executorCursorPath =
+  executorCursorPathRaw != null && String(executorCursorPathRaw).trim() !== ''
+    ? path.resolve(process.cwd(), String(executorCursorPathRaw).trim())
+    : path.join(__dirname, '..', 'data', 'executor-cursor.json');
+
+/** When true (default), eventListener runs executeAsExecutor after ProposalApproved (needs EXECUTOR_KEYSTORE_PASSWORD). */
+const autoExecuteAfterApprove = !['0', 'false', 'no'].includes(
+  String(process.env.ENABLE_AUTO_EXECUTE_AFTER_APPROVE ?? '1').toLowerCase()
+);
+
 module.exports = {
   nodeEnv,
   enableDebugRoutes,
@@ -207,5 +231,9 @@ module.exports = {
   eventListenerEnabled,
   autoSeedRoles,
   uploadTimingInResponse,
-  jsonBodyLimit
+  jsonBodyLimit,
+  executorUserId,
+  executorKeystorePassword,
+  executorCursorPath,
+  autoExecuteAfterApprove
 };

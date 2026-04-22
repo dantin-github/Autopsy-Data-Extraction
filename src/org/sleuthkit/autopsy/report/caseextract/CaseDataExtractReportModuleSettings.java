@@ -7,10 +7,14 @@ import org.sleuthkit.autopsy.report.ReportModuleSettings;
  */
 public final class CaseDataExtractReportModuleSettings implements ReportModuleSettings {
 
-    private static final long serialVersionUID = 3L;
+    private static final long serialVersionUID = 4L;
 
     private String gatewayUrl = "http://localhost:3000";
     private boolean uploadEnabled;
+    /** Mutually exclusive with {@link #uploadEnabled} in UI; propose-with-token path (P3). */
+    private boolean proposalEnabled;
+    /** Session-only reason for modification proposal; not written to {@link CaseDataExtractUploadPreferences}. */
+    private String proposalReason = "";
     /** Always CaseRegistry path; legacy "crud" from older configs is ignored at upload time. */
     private String contractMode = "contract";
 
@@ -52,6 +56,22 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
 
     public void setUploadEnabled(boolean uploadEnabled) {
         this.uploadEnabled = uploadEnabled;
+    }
+
+    public boolean isProposalEnabled() {
+        return proposalEnabled;
+    }
+
+    public void setProposalEnabled(boolean proposalEnabled) {
+        this.proposalEnabled = proposalEnabled;
+    }
+
+    public String getProposalReason() {
+        return proposalReason != null ? proposalReason : "";
+    }
+
+    public void setProposalReason(String proposalReason) {
+        this.proposalReason = proposalReason != null ? proposalReason : "";
     }
 
     public String getContractMode() {
@@ -105,6 +125,8 @@ public final class CaseDataExtractReportModuleSettings implements ReportModuleSe
         }
         o.gatewayUrl = this.gatewayUrl;
         o.uploadEnabled = this.uploadEnabled;
+        o.proposalEnabled = this.proposalEnabled;
+        o.proposalReason = this.proposalReason;
         o.contractMode = normalizeContractMode(this.contractMode);
         o.oneTimeToken = this.oneTimeToken;
         o.signingPassword = this.signingPassword;

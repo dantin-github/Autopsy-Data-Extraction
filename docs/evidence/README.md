@@ -10,7 +10,7 @@ This folder holds **reproducible artifacts** for the thesis: contract ABI, trans
 | `chapter-evidence-mapping.md` | Map thesis sections to files and figures. |
 | `negative-cases/s4.4-manifest.jsonl` | S4.4 contract negative tests (from `npm test` when chain present). |
 | `e2e-negative/s7.6-manifest.jsonl` | S7.6 HTTP negative tests (mock tx hashes in CI). |
-| `autopsy-upload/` | Autopsy → gateway upload: §5.4 latency mapping, receipt samples, screenshot checklist (`mapping.md`, `README.md`). |
+| `autopsy-upload/` | Autopsy → gateway upload + **proposal flow** (`proposal-flow/` for P4: propose → approve → auto-execute evidence checklist). |
 
 **Regenerate ABI copy after contract changes:**
 

@@ -1,0 +1,10 @@
+{
+  "_comment": "Illustrative POST /api/modify/approve 200 JSON (judge session). Executor auto-execute is a separate transaction afterward.",
+  "proposalId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+  "txHash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "blockNumber": 43,
+  "proposalApproved": {
+    "proposalId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "approver": "0x1111111111111111111111111111111111111111"
+  }
+}

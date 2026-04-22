@@ -32,6 +32,7 @@ import org.sleuthkit.datamodel.TskData;
 import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayClient;
 import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayUploadException;
 import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayError;
+import org.sleuthkit.autopsy.report.caseextract.gateway.ProposalResponse;
 import org.sleuthkit.autopsy.report.caseextract.gateway.UploadClientTiming;
 import org.sleuthkit.autopsy.report.caseextract.gateway.UploadRequest;
 import org.sleuthkit.autopsy.report.caseextract.gateway.UploadResponse;
@@ -84,7 +85,14 @@ import org.sleuthkit.autopsy.report.caseextract.gateway.UploadResponse;
     "ReportModule.uploadErr.aggregate=Aggregate hash verification failed.",
     "ReportModule.uploadErr.signing=Signing password missing or incorrect for contract upload.",
     "ReportModule.uploadErr.http=HTTP {0}: {1}",
-    "ReportModule.uploadErr.cancelled=Upload cancelled."
+    "ReportModule.uploadErr.cancelled=Upload cancelled.",
+    "ReportModule.status.proposing=Submitting modification proposal to gateway...",
+    "ReportModule.status.proposeOk=Report generated; modification proposal submitted (proposalId: {0}).",
+    "ReportModule.status.proposeFailed=Report generated; modification proposal failed: {0}",
+    "ReportModule.status.proposeSkippedNoSigning=Report generated; modification proposal skipped (signing password is required).",
+    "ReportModule.status.proposeSkippedNoReason=Report generated; modification proposal skipped (reason is required).",
+    "ReportModule.status.uploadHintExists=Case already exists on chain; uncheck \"Upload after save\" and check \"Submit as modification proposal\" instead.",
+    "ReportModule.proposeErr.oldHashMismatch=Local record does not match the chain; refresh or re-upload before proposing."
 })
 public final class CaseDataExtractReportModule implements GeneralReportModule {
 
@@ -357,7 +365,22 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
 
             String completion =
                     NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.done");
-            if (runSettings.isUploadEnabled()) {
+            if (runSettings.isProposalEnabled()) {
+                progressPanel.updateStatusLabel(
+                        NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.proposing"));
+                String proposeMsg =
+                        maybeProposeReportJson(
+                                outPath,
+                                outDir,
+                                runSettings,
+                                reportJson,
+                                caseNumber,
+                                examiner,
+                                aggregateHash);
+                if (proposeMsg != null) {
+                    completion = proposeMsg;
+                }
+            } else if (runSettings.isUploadEnabled()) {
                 progressPanel.updateStatusLabel(
                         NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadingBlockchain"));
                 String uploadMsg =
@@ -389,6 +412,98 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             configuredSettings.copyTo(s);
         }
         return s;
+    }
+
+    /**
+     * P3: POST /api/modify/propose-with-token after {@code case_data_extract.json} is written.
+     *
+     * @return user-facing completion line when proposal was attempted or skipped; {@code null} if proposal is disabled
+     */
+    private String maybeProposeReportJson(
+            java.nio.file.Path caseJsonPath,
+            java.nio.file.Path reportOutputDir,
+            CaseDataExtractReportModuleSettings cfg,
+            String reportJson,
+            String caseId,
+            String examiner,
+            String aggregateHash) {
+        if (!cfg.isProposalEnabled()) {
+            return null;
+        }
+        String base = cfg.getGatewayUrl() != null ? cfg.getGatewayUrl().trim() : "";
+        if (base.isEmpty() || !GATEWAY_BASE_URL_PATTERN.matcher(base).matches()) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedBadUrl");
+        }
+        String token = cfg.getOneTimeToken() != null ? cfg.getOneTimeToken().trim() : "";
+        if (token.isEmpty()) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoToken");
+        }
+        if (caseId == null || caseId.isBlank()) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.uploadSkippedNoCaseId");
+        }
+        String signing = cfg.getSigningPassword();
+        if (signing == null || signing.isBlank()) {
+            return NbBundle.getMessage(
+                    CaseDataExtractReportModule.class, "ReportModule.status.proposeSkippedNoSigning");
+        }
+        String reason = cfg.getProposalReason() != null ? cfg.getProposalReason().trim() : "";
+        if (reason.isEmpty()) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.proposeSkippedNoReason");
+        }
+        String generatedAt =
+                DateTimeFormatter.ISO_INSTANT.format(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        UploadRequest req =
+                new UploadRequest(
+                        caseId.trim(),
+                        examiner != null ? examiner.trim() : "",
+                        aggregateHash,
+                        generatedAt,
+                        reportJson);
+        UploadClientTiming clientTiming = new UploadClientTiming();
+        try {
+            ProposalResponse resp =
+                    new GatewayClient()
+                            .proposeModification(base, req, token, signing, reason, clientTiming);
+            Instant started = clientTiming.getUploadStartedAt();
+            Instant ended = clientTiming.getUploadResponseAt();
+            long rtt = clientTiming.getClientRoundTripMs();
+            try {
+                ProposalReceiptWriter.writeSuccess(reportOutputDir, started, ended, rtt, resp);
+            } catch (IOException ioe) {
+                LOGGER.log(Level.WARNING, "Could not write proposal_receipt.json", ioe);
+            }
+            LOGGER.log(
+                    Level.INFO,
+                    "Gateway propose succeeded caseId={0} proposalId={1} tx={2} clientRoundTripMs={3}",
+                    new Object[] {caseId, resp.getProposalId(), resp.getTxHash(), rtt});
+            return NbBundle.getMessage(
+                    CaseDataExtractReportModule.class, "ReportModule.status.proposeOk", resp.getProposalId());
+        } catch (GatewayUploadException e) {
+            Instant started = clientTiming.getUploadStartedAt();
+            Instant ended = clientTiming.getUploadResponseAt();
+            long rtt = clientTiming.getClientRoundTripMs();
+            try {
+                ProposalReceiptWriter.writeFailure(reportOutputDir, started, ended, rtt, e);
+            } catch (IOException ioe) {
+                LOGGER.log(Level.WARNING, "Could not write proposal_receipt.json", ioe);
+            }
+            String detail = summarizeProposalFailure(e);
+            LOGGER.log(
+                    Level.WARNING,
+                    "Gateway propose failed caseId={0} kind={1}: {2}",
+                    new Object[] {caseId, e.getKind(), detail});
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.status.proposeFailed", detail);
+        }
+    }
+
+    private static String summarizeProposalFailure(GatewayUploadException e) {
+        String raw = e.getMessage() != null ? e.getMessage() : "";
+        String lower = raw.toLowerCase(Locale.ROOT);
+        if (e.getKind() == GatewayUploadException.Kind.DUPLICATE
+                && (lower.contains("old") && lower.contains("hash") || lower.contains("old_hash_mismatch"))) {
+            return NbBundle.getMessage(CaseDataExtractReportModule.class, "ReportModule.proposeErr.oldHashMismatch");
+        }
+        return summarizeGatewayUploadFailure(e);
     }
 
     /**

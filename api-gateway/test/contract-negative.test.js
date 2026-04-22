@@ -255,7 +255,7 @@ test('S4.4: CaseRegistry revert scenarios + evidence manifest', async (t) => {
       });
     });
 
-    await t.test('wrong police executes after judge approve → not proposer', async () => {
+    await t.test('judge executes after approve → not police', async () => {
       const { ih, rh, nh, pid } = record('s5');
       await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'createRecord'), [ih, rh], 'police');
       await web3j.sendRawTransaction(
@@ -266,11 +266,11 @@ test('S4.4: CaseRegistry revert scenarios + evidence manifest', async (t) => {
       );
       const rOk = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'approve'), [pid], 'judge');
       assert.strictEqual(receiptStatusNum(rOk), 0, 'approve ok');
-      const r = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'execute'), [pid], 'police2');
-      assertRevert(r, 'not proposer', 'wrong_executor');
+      const r = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'execute'), [pid], 'judge');
+      assertRevert(r, 'not police', 'judge_execute');
       appendEvidence({
-        scenario: 'non_proposer_execute',
-        expected: 'not proposer',
+        scenario: 'non_police_execute',
+        expected: 'not police',
         txHash: r.transactionHash,
         status: r.status,
         revertReason: decodeRevertReason(getReceiptOutput(r))

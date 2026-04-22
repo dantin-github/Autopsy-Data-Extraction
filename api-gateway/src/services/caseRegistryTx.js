@@ -682,7 +682,7 @@ async function rejectFromUserKeystore(opts) {
 }
 
 /**
- * Police keystore → CaseRegistry.execute(proposalId). Caller must be original proposer on-chain.
+ * Police keystore → CaseRegistry.execute(proposalId). Any police may execute after approve (contract allows gateway executor).
  * @param {{ userId: string, signingPassword: string, proposalIdHex: string }} opts
  * @returns {Promise<{ txHash: string, blockNumber: number, proposalExecuted: { proposalId: string, oldHash: string, newHash: string }|null }>}
  */
@@ -781,7 +781,6 @@ async function executeFromUserKeystore(opts) {
       const reasonRevert = out ? decodeRevertReason(out) : null;
       throw failedRawTxError(receipt, reasonRevert, 'execute', 'EXECUTE_FAILED', {
         'not approved': 409,
-        'not proposer': 403,
         'record changed': 409
       });
     }
@@ -800,6 +799,33 @@ async function executeFromUserKeystore(opts) {
       /* ignore */
     }
   }
+}
+
+/**
+ * system-executor keystore (EXECUTOR_KEYSTORE_PASSWORD) → CaseRegistry.execute(proposalId).
+ * @param {{ proposalIdHex: string }} opts
+ * @returns {Promise<{ txHash: string, blockNumber: number, proposalExecuted: { proposalId: string, oldHash: string, newHash: string }|null }>}
+ */
+async function executeAsExecutor(opts) {
+  const proposalIdHex = opts.proposalIdHex != null ? String(opts.proposalIdHex).trim() : '';
+  if (!proposalIdHex) {
+    const err = new Error('proposalId is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const userId = String(config.executorUserId || '').trim();
+  const signingPassword = config.executorKeystorePassword != null ? String(config.executorKeystorePassword) : '';
+  if (!userId || !signingPassword) {
+    const err = new Error(
+      'EXECUTOR_KEYSTORE_PASSWORD (and EXECUTOR_USER_ID if overriding) must be set for automated execute'
+    );
+    err.code = 'EXECUTOR_NOT_CONFIGURED';
+    err.status = 503;
+    throw err;
+  }
+
+  return executeFromUserKeystore({ userId, signingPassword, proposalIdHex });
 }
 
 /**
@@ -939,6 +965,7 @@ module.exports = {
   approveFromUserKeystore,
   rejectFromUserKeystore,
   executeFromUserKeystore,
+  executeAsExecutor,
   getRecordHashOnRegistry,
   getProposalFromRegistry,
   toBytes32,

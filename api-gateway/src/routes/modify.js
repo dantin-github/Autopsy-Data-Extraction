@@ -9,52 +9,13 @@ const chain = require('../services/chain');
 const { getDefaultRecordStore } = require('../services/recordStore');
 const caseRegistryTx = require('../services/caseRegistryTx');
 const requirePoliceSession = require('../middleware/requirePoliceSession');
+const requirePoliceToken = require('../middleware/requirePoliceToken');
 const requireJudgeSession = require('../middleware/requireJudgeSession');
 const requireAnySession = require('../middleware/requireAnySession');
 const { logger } = require('../logger');
+const { updateCrudMirrorWithRetries } = require('../services/crudMirror');
 
 const router = express.Router();
-
-/** Delays before each CRUD update attempt (ms); first attempt is immediate. */
-const CRUD_UPDATE_BACKOFF_MS = [0, 250, 750, 1500];
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Best-effort mirror of CaseRegistry into t_case_hash; transient RPC errors are retried (S4.8).
- * @param {string} indexHashRaw hex without 0x (from hashOnly.computeIndexHash)
- * @param {string} recordHashRaw 64 hex without 0x OR 0x + 64 hex (from computeRecordHashFromJson or registry)
- */
-async function updateCrudMirrorWithRetries(indexHashRaw, recordHashRaw) {
-  let lastErr;
-  const max = CRUD_UPDATE_BACKOFF_MS.length;
-  for (let i = 0; i < max; i += 1) {
-    const waitMs = CRUD_UPDATE_BACKOFF_MS[i];
-    if (waitMs > 0) {
-      await sleep(waitMs);
-    }
-    try {
-      return await chain.updateRecord({
-        indexHash: indexHashRaw,
-        recordHash: recordHashRaw
-      });
-    } catch (e) {
-      lastErr = e;
-      logger.warn(
-        {
-          evt: 'crud_update_retry',
-          attempt: i + 1,
-          maxAttempts: max,
-          err: e && e.message ? String(e.message) : String(e)
-        },
-        'CRUD updateRecord failed'
-      );
-    }
-  }
-  throw lastErr;
-}
 
 function toHex0x(hexMaybe) {
   const s = String(hexMaybe).trim().replace(/^0x/i, '');
@@ -121,9 +82,9 @@ function findPendingEntryForProposal(recordStore, proposalIdHex) {
 }
 
 /**
- * POST /api/modify/propose — police session + keystore signing; chain `propose`; pending JSON in recordStore (S7.1).
+ * Shared propose handler: policeUserId from session or X-Auth-Token middleware.
  */
-router.post('/api/modify/propose', requirePoliceSession, async (req, res, next) => {
+async function handlePropose(req, res, next) {
   const body = req.body || {};
   const caseIdRaw = body.caseId;
   const caseJson = body.caseJson;
@@ -257,7 +218,7 @@ router.post('/api/modify/propose', requirePoliceSession, async (req, res, next) 
     const pkey = pendingStorageKey(caseId, proposalIdHex);
     recordStore.save(pkey, newFull);
 
-    const body = {
+    const out = {
       proposalId: proposalIdHex,
       caseId,
       txHash,
@@ -268,9 +229,9 @@ router.post('/api/modify/propose', requirePoliceSession, async (req, res, next) 
       pendingKey: pkey
     };
     if (proposalCreated) {
-      body.proposalCreated = proposalCreated;
+      out.proposalCreated = proposalCreated;
     }
-    return res.status(200).json(body);
+    return res.status(200).json(out);
   } catch (e) {
     if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
       e.status = 503;
@@ -283,7 +244,17 @@ router.post('/api/modify/propose', requirePoliceSession, async (req, res, next) 
     }
     return next(e);
   }
-});
+}
+
+/**
+ * POST /api/modify/propose — police session + keystore signing; chain `propose`; pending JSON in recordStore (S7.1).
+ */
+router.post('/api/modify/propose', requirePoliceSession, handlePropose);
+
+/**
+ * POST /api/modify/propose-with-token — X-Auth-Token (police OTP) + keystore signing; same chain/recordStore behavior as /propose (Autopsy).
+ */
+router.post('/api/modify/propose-with-token', requirePoliceToken, handlePropose);
 
 /**
  * POST /api/modify/approve — judge session + keystore signing; chain `approve` (S7.2).

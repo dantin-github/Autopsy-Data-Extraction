@@ -5,6 +5,7 @@ Artifacts for the thesis **§5.4 end-to-end latency** and **Autopsy-side upload 
 | Path | Purpose |
 |------|---------|
 | [mapping.md](mapping.md) | Thesis claims → files, log fields, and screenshots |
+| [proposal-flow/](proposal-flow/) | **P4:** police **propose** from Autopsy → judge approve → auto-execute + CRUD (`README.md`, `mapping.md`, samples, screens) |
 | [samples/](samples/) | Illustrative `upload_receipt.json` (redact before publishing if needed) |
 | [screens/](screens/) | Screenshots (Monitor **Upload Status**, gateway logs); add your captures |
 | [S6.3-fault-injection-checklist.md](S6.3-fault-injection-checklist.md) | Optional fault-injection steps (S6.3); skip if not run |

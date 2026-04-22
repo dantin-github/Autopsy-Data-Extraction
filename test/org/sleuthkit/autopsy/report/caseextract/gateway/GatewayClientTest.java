@@ -29,6 +29,12 @@ public final class GatewayClientTest {
         test503ChainUnavailable();
         testUploadClientTimingS4_7();
         testPingOk();
+        testPropose200();
+        testPropose401();
+        testPropose409();
+        testPropose503();
+        testCaseExistsTrue();
+        testCaseExistsFalse();
         System.out.println("GatewayClientTest: all assertions passed.");
     }
 
@@ -328,6 +334,178 @@ public final class GatewayClientTest {
         } finally {
             srv.stop(0);
         }
+    }
+
+    private static void testPropose200() throws Exception {
+        String body =
+                "{\"proposalId\":\"0xaa\",\"caseId\":\"C-1\",\"txHash\":\"0xbb\",\"blockNumber\":7,"
+                        + "\"indexHash\":\"0x01\",\"oldRecordHash\":\"0x02\",\"newRecordHash\":\"0x03\","
+                        + "\"pendingKey\":\"C-1::pending-0xaa\"}";
+        HttpServer srv = mockProposeServer(200, body);
+        try {
+            int port = srv.getAddress().getPort();
+            UploadClientTiming timing = new UploadClientTiming();
+            ProposalResponse res =
+                    new GatewayClient()
+                            .proposeModification(
+                                    "http://127.0.0.1:" + port,
+                                    new UploadRequest("C-1", "e", "h", "t", "{}"),
+                                    "tok",
+                                    "pw",
+                                    "because",
+                                    timing);
+            assertEq("0xaa", res.getProposalId());
+            assertEq(7L, res.getBlockNumber());
+            assertEq("C-1::pending-0xaa", res.getPendingKey());
+            if (timing.getUploadStartedAt() == null) {
+                throw new AssertionError("propose timing start");
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void testPropose401() throws Exception {
+        HttpServer srv = mockProposeServer(401, "{\"error\":\"Unauthorized\"}");
+        try {
+            int port = srv.getAddress().getPort();
+            try {
+                new GatewayClient()
+                        .proposeModification(
+                                "http://127.0.0.1:" + port,
+                                new UploadRequest("c", "e", "h", "t", "{}"),
+                                "tok",
+                                "pw",
+                                "r",
+                                null);
+                throw new AssertionError("expected 401");
+            } catch (GatewayUploadException e) {
+                if (e.getKind() != GatewayUploadException.Kind.TOKEN_CONSUMED) {
+                    throw new AssertionError("kind " + e.getKind());
+                }
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void testPropose409() throws Exception {
+        HttpServer srv =
+                mockProposeServer(
+                        409, "{\"error\":\"local mismatch\",\"code\":\"OLD_HASH_MISMATCH\"}");
+        try {
+            int port = srv.getAddress().getPort();
+            try {
+                new GatewayClient()
+                        .proposeModification(
+                                "http://127.0.0.1:" + port,
+                                new UploadRequest("c", "e", "h", "t", "{}"),
+                                "tok",
+                                "pw",
+                                "r",
+                                null);
+                throw new AssertionError("expected 409");
+            } catch (GatewayUploadException e) {
+                if (e.getKind() != GatewayUploadException.Kind.DUPLICATE) {
+                    throw new AssertionError("kind " + e.getKind());
+                }
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void testPropose503() throws Exception {
+        HttpServer srv = mockProposeServer(503, "{\"error\":\"no chain\"}");
+        try {
+            int port = srv.getAddress().getPort();
+            try {
+                new GatewayClient()
+                        .proposeModification(
+                                "http://127.0.0.1:" + port,
+                                new UploadRequest("c", "e", "h", "t", "{}"),
+                                "tok",
+                                "pw",
+                                "r",
+                                null);
+                throw new AssertionError("expected 503");
+            } catch (GatewayUploadException e) {
+                if (e.getKind() != GatewayUploadException.Kind.CHAIN_UNAVAILABLE) {
+                    throw new AssertionError("kind " + e.getKind());
+                }
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void testCaseExistsTrue() throws Exception {
+        HttpServer srv = mockCaseExistsServer(200, "{\"caseId\":\"X\",\"exists\":true,\"indexHash\":\"0xab\"}");
+        try {
+            int port = srv.getAddress().getPort();
+            boolean ex =
+                    new GatewayClient().caseExists("http://127.0.0.1:" + port, "X", "tok");
+            if (!ex) {
+                throw new AssertionError("expected exists");
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void testCaseExistsFalse() throws Exception {
+        HttpServer srv = mockCaseExistsServer(200, "{\"caseId\":\"Y\",\"exists\":false,\"indexHash\":null}");
+        try {
+            int port = srv.getAddress().getPort();
+            boolean ex =
+                    new GatewayClient().caseExists("http://127.0.0.1:" + port, "Y", "tok");
+            if (ex) {
+                throw new AssertionError("expected !exists");
+            }
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static HttpServer mockProposeServer(int status, String jsonBody) throws IOException {
+        HttpServer srv = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        byte[] b = jsonBody.getBytes(StandardCharsets.UTF_8);
+        srv.createContext(
+                "/api/modify/propose-with-token",
+                ex -> {
+                    ex.getRequestBody().readAllBytes();
+                    ex.getResponseHeaders().add("Content-Type", "application/json");
+                    ex.sendResponseHeaders(status, b.length);
+                    try (OutputStream os = ex.getResponseBody()) {
+                        os.write(b);
+                    }
+                });
+        srv.setExecutor(null);
+        srv.start();
+        return srv;
+    }
+
+    private static HttpServer mockCaseExistsServer(int status, String jsonBody) throws IOException {
+        HttpServer srv = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        byte[] b = jsonBody.getBytes(StandardCharsets.UTF_8);
+        srv.createContext(
+                "/",
+                ex -> {
+                    String p = ex.getRequestURI().getPath();
+                    if (!p.startsWith("/api/case-exists/")) {
+                        ex.sendResponseHeaders(404, -1);
+                        return;
+                    }
+                    ex.getRequestBody().readAllBytes();
+                    ex.getResponseHeaders().add("Content-Type", "application/json");
+                    ex.sendResponseHeaders(status, b.length);
+                    try (OutputStream os = ex.getResponseBody()) {
+                        os.write(b);
+                    }
+                });
+        srv.setExecutor(null);
+        srv.start();
+        return srv;
     }
 
     private static HttpServer mockUploadServer(int status, String jsonBody) throws IOException {

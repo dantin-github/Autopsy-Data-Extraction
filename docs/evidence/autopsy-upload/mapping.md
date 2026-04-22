@@ -13,6 +13,15 @@ Use this table when writing **§5.4** (or equivalent) and the **Autopsy integrat
 
 **Caveats for the thesis text:** T0–T2 use different clocks (examiner PC, gateway host, chain node). State **NTP / skew** limitations when arguing sub-second precision.
 
+## Modification proposal (autopsy-modify-reupload-flow)
+
+| Claim | Evidence |
+|--------|----------|
+| Police submit **propose** from Autopsy (not a separate Web UI) | Root `README.md` mermaid (`POST /api/modify/propose-with-token`); `proposal-flow/samples/proposal_receipt.json`; gateway `modify` route |
+| Judge **approve** then gateway **executor** auto-**execute** | `proposal-flow/samples/modify-approve-response.json` + audit / second tx; `proposal-flow/samples/query-after-execute.json`; plan P2 |
+
+See **`proposal-flow/mapping.md`** for the full thesis table.
+
 ## Narrative claims → evidence
 
 | Claim | Evidence |

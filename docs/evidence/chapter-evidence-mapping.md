@@ -10,6 +10,7 @@ Fill the **Section** column with your dissertation numbering. **Evidence** point
 | §x.x | Contract negative cases (revert reasons) | `docs/evidence/tx-hashes/s4.4-negative.csv`, manifest `negative-cases/s4.4-manifest.jsonl` |
 | §x.x | Gateway HTTP negative cases (`chainError`) | `docs/evidence/tx-hashes/s7.6-http-negative.csv`, `e2e-negative/s7.6-manifest.jsonl` |
 | §x.x | API request/response samples | `docs/evidence/samples/` |
+| §x.x | Autopsy upload + **modification proposal** (propose-with-token, auto-execute) | `docs/evidence/autopsy-upload/` + **`autopsy-upload/proposal-flow/`** (`README.md`, `mapping.md`, `samples/*.json`) |
 | §x.x | Off-chain audit trail (events → JSONL) | `api-gateway/data/audit.jsonl` (runtime; copy a snippet into `samples/audit-events.example.jsonl`) |
 | §x.x | WeBASE / node explorer | `docs/evidence/webase/README.md` (screenshot checklist) |
 

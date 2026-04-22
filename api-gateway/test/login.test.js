@@ -2,6 +2,8 @@
 
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret-for-login';
 process.env.MAIL_DRY_RUN = process.env.MAIL_DRY_RUN || '1';
+/* Isolate from developer .env: reuse mode makes otp_sent / __police-only assertions fail. */
+process.env.X_AUTH_TOKEN_SINGLE_USE = '1';
 
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -77,11 +79,7 @@ test('POST /login police otp_sent with X_AUTH_TOKEN_SINGLE_USE=0 sets xAuthToken
       .expect(200);
     assert.strictEqual(res.body.xAuthTokenSingleUse, false);
   } finally {
-    if (prev === undefined) {
-      delete process.env.X_AUTH_TOKEN_SINGLE_USE;
-    } else {
-      process.env.X_AUTH_TOKEN_SINGLE_USE = prev;
-    }
+    process.env.X_AUTH_TOKEN_SINGLE_USE = prev !== undefined ? prev : '1';
     delete require.cache[require.resolve('../src/config')];
     delete require.cache[require.resolve('../src/routes/auth')];
     delete require.cache[require.resolve('../src/app')];

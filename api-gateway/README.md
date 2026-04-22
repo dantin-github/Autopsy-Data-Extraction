@@ -81,7 +81,7 @@ Set **`CONTRACT_POSITIVE=0`** to skip this test (e.g. CI without a node). If con
 
 ## Phase 4 · Contract negative cases (S4.4)
 
-**`test/contract-negative.test.js`** runs **six** guarded reverts (non-police `createRecord`, non-judge `approve`, execute without approve, duplicate `proposalId`, self-approve, non-proposer `execute`). Each transaction must **fail with non-zero receipt status** and a **decoded Solidity `Error(string)`** matching the contract `require` message. Evidence (**`txHash`**, status, reason) is appended to **`docs/evidence/negative-cases/s4.4-manifest.jsonl`** at repo root (file is recreated each run).
+**`test/contract-negative.test.js`** runs **six** guarded reverts (non-police `createRecord`, non-judge `approve`, execute without approve, duplicate `proposalId`, self-approve, non-police `execute` after approve). Each transaction must **fail with non-zero receipt status** and a **decoded Solidity `Error(string)`** matching the contract `require` message. Evidence (**`txHash`**, status, reason) is appended to **`docs/evidence/negative-cases/s4.4-manifest.jsonl`** at repo root (file is recreated each run).
 
 Set **`CONTRACT_NEGATIVE=0`** to skip. Requires the same chain config as S4.3.
 
@@ -269,6 +269,7 @@ Use **`e2e-flow.ps1`** or the steps in comments there: police login → OTP from
 ### S8.1 · `eventListener`（`src/services/eventListener.js`）
 
 - 网关进程启动（**`npm start`** / **`npm run dev`**）后，若链配置齐全且 **`CASE_REGISTRY_ADDR`** 已设置，则每 **`EVENT_LISTENER_POLL_MS`**（默认 **5000**）轮询新区块，扫描 **`CaseRegistry`** 合约 receipt 中的 **`RecordCreated`**、**`ProposalCreated`**、**`ProposalApproved`**、**`ProposalRejected`**、**`ProposalExecuted`**，以 JSON 行追加写入 **`data/audit.jsonl`**（可通过 **`AUDIT_LOG_PATH`** 覆盖）。
+- **自动 `execute`（P2）**：扫描到 **`ProposalApproved`** 且 **`.env`** 已设 **`EXECUTOR_KEYSTORE_PASSWORD`**（与 **`system-executor`** keystore 一致）时，网关会调用 **`executeAsExecutor`** 上链执行；随后合并本地 **`…::pending-…`** 快照（若存在）并重试 **`t_case_hash`** 镜像（失败条目写入 **`data/executor-cursor.json`** 的 **`crudBacklog`**，后续 tick 继续重试）。去重见 **`autoExecuteDone`**。关闭：**`ENABLE_AUTO_EXECUTE_AFTER_APPROVE=0`**。
 - 进度保存在 **`data/audit-state.json`**（**`lastBlockSeen`**）。首次启动会将 **`lastBlockSeen`** 设为当前块高（不追溯历史块）；若需从更早块重扫，可停网关后删除该状态文件再启动。
 - 关闭轮询：**`ENABLE_EVENT_LISTENER=0`**。
 

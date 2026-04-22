@@ -7,12 +7,15 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /**
- * Minimal HTTP client for api-gateway: {@code POST /api/upload}, {@code GET /health}.
+ * Minimal HTTP client for api-gateway: {@code POST /api/upload}, {@code POST /api/modify/propose-with-token},
+ * {@code GET /api/case-exists/:caseId}, {@code GET /health}.
  * Phase 4 S4.7: optional {@link UploadClientTiming} records wall-clock RTT from just before {@code openConnection()}
  * through response body read (or failure), for receipt / §5.4.
  */
@@ -163,6 +166,154 @@ public final class GatewayClient {
 
     private static boolean isCancelled(BooleanSupplier cancelRequested) {
         return cancelRequested != null && cancelRequested.getAsBoolean();
+    }
+
+    /**
+     * POST /api/modify/propose-with-token — police OTP + keystore signing + reason (P3).
+     */
+    public ProposalResponse proposeModification(
+            String baseUrl,
+            UploadRequest request,
+            String authToken,
+            String signingPassword,
+            String reason,
+            UploadClientTiming clientTiming)
+            throws GatewayUploadException {
+        HttpURLConnection c = null;
+        try {
+            if (authToken == null || authToken.isBlank()) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.BAD_REQUEST,
+                        0,
+                        "auth token is required",
+                        null,
+                        null);
+            }
+            String sp = signingPassword != null ? signingPassword : "";
+            byte[] body =
+                    request.toProposeJson(sp, reason != null ? reason : "").getBytes(StandardCharsets.UTF_8);
+            String url = joinUrl(baseUrl, "/api/modify/propose-with-token");
+            if (clientTiming != null) {
+                clientTiming.markHttpRequestStarted();
+            }
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            c.setReadTimeout(READ_TIMEOUT_MS);
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            c.setRequestProperty("Accept", "application/json");
+            c.setRequestProperty("User-Agent", USER_AGENT);
+            c.setRequestProperty("X-Auth-Token", authToken.trim());
+            try (OutputStream out = c.getOutputStream()) {
+                out.write(body);
+            }
+            int code = c.getResponseCode();
+            String respBody = readResponseBody(c);
+            if (code >= 200 && code < 300) {
+                return ProposalResponse.fromJson(respBody);
+            }
+            throw GatewayUploadException.fromHttpResponse(code, respBody);
+        } catch (SocketTimeoutException e) {
+            throw new GatewayUploadException(
+                    GatewayUploadException.Kind.TIMEOUT,
+                    0,
+                    e.getMessage() != null ? e.getMessage() : "timeout",
+                    null,
+                    e);
+        } catch (IOException e) {
+            throw new GatewayUploadException(
+                    GatewayUploadException.Kind.GATEWAY_UNREACHABLE,
+                    0,
+                    "unreachable: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()),
+                    null,
+                    e);
+        } catch (GatewayUploadException e) {
+            throw e;
+        } finally {
+            if (clientTiming != null) {
+                clientTiming.finishHttpAttempt();
+            }
+            if (c != null) {
+                c.disconnect();
+            }
+        }
+    }
+
+    /**
+     * GET /api/case-exists/:caseId — returns registry {@code exists} flag (peek token).
+     */
+    public boolean caseExists(String baseUrl, String caseId, String authToken) throws GatewayUploadException {
+        HttpURLConnection c = null;
+        try {
+            if (authToken == null || authToken.isBlank()) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.BAD_REQUEST,
+                        0,
+                        "auth token is required",
+                        null,
+                        null);
+            }
+            if (caseId == null || caseId.isBlank()) {
+                throw new GatewayUploadException(
+                        GatewayUploadException.Kind.BAD_REQUEST, 0, "caseId is required", null, null);
+            }
+            String enc =
+                    URLEncoder.encode(caseId.trim(), StandardCharsets.UTF_8).replace("+", "%20");
+            String url = joinUrl(baseUrl, "/api/case-exists/" + enc);
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestMethod("GET");
+            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            c.setReadTimeout(READ_TIMEOUT_MS);
+            c.setRequestProperty("Accept", "application/json");
+            c.setRequestProperty("User-Agent", USER_AGENT);
+            c.setRequestProperty("X-Auth-Token", authToken.trim());
+            int code = c.getResponseCode();
+            String respBody = readResponseBody(c);
+            if (code >= 200 && code < 300) {
+                try {
+                    Map<String, Object> m = SimpleJson.parseObject(respBody.trim());
+                    Object ex = m.get("exists");
+                    if (ex instanceof Boolean) {
+                        return (Boolean) ex;
+                    }
+                    throw new GatewayUploadException(
+                            GatewayUploadException.Kind.UNKNOWN,
+                            0,
+                            "case-exists response missing boolean exists",
+                            null,
+                            null);
+                } catch (SimpleJson.JsonParseException e) {
+                    throw new GatewayUploadException(
+                            GatewayUploadException.Kind.UNKNOWN,
+                            0,
+                            "invalid JSON: " + e.getMessage(),
+                            null,
+                            null);
+                }
+            }
+            throw GatewayUploadException.fromHttpResponse(code, respBody);
+        } catch (SocketTimeoutException e) {
+            throw new GatewayUploadException(
+                    GatewayUploadException.Kind.TIMEOUT,
+                    0,
+                    e.getMessage() != null ? e.getMessage() : "timeout",
+                    null,
+                    e);
+        } catch (IOException e) {
+            throw new GatewayUploadException(
+                    GatewayUploadException.Kind.GATEWAY_UNREACHABLE,
+                    0,
+                    "unreachable: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()),
+                    null,
+                    e);
+        } catch (GatewayUploadException e) {
+            throw e;
+        } finally {
+            if (c != null) {
+                c.disconnect();
+            }
+        }
     }
 
     /**

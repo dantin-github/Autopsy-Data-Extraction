@@ -48,6 +48,7 @@ if not exist "%OUT%" mkdir "%OUT%"
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\OpenCaseDataExtractMonitorAction.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\UploadSettingsPanel.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\UploadReceiptWriter.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\ProposalReceiptWriter.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\UploadSnapshot.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\ReportUploadStatusPatcher.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\GatewayClient.java" ^
@@ -56,6 +57,7 @@ if not exist "%OUT%" mkdir "%OUT%"
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\GatewayUploadException.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\JsonStrings.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\PingResult.java" ^
+  "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\ProposalResponse.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\SimpleJson.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\UploadRequest.java" ^
   "%SRC%\org\sleuthkit\autopsy\report\caseextract\gateway\UploadResponse.java"
@@ -98,6 +100,13 @@ copy /Y "%SCRIPT%install-config\core-layer-patched.xml" "%WORK%\org\sleuthkit\au
 
 echo [4b/5] Patching META-INF/services...
 copy /Y "%SCRIPT%install-config\core-GeneralReportModule-services.txt" "%WORK%\META-INF\services\org.sleuthkit.autopsy.report.GeneralReportModule" >nul
+
+echo [4c/5] Backup previous patched JAR (if any)...
+if exist "%SCRIPT%patch\org-sleuthkit-autopsy-core-patched.jar" (
+    if not exist "%SCRIPT%patch\backup" mkdir "%SCRIPT%patch\backup"
+    powershell -NoProfile -Command ^
+        "Copy-Item -LiteralPath '%SCRIPT%patch\org-sleuthkit-autopsy-core-patched.jar' -Destination (Join-Path '%SCRIPT%patch\backup' ('core-patched-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.jar'))"
+)
 
 echo [5/5] Repackaging core JAR (preserving original manifest)...
 if not exist "%SCRIPT%patch" mkdir "%SCRIPT%patch"

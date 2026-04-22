@@ -220,6 +220,70 @@ test('POST /api/modify/propose without police session → 401', async () => {
     .expect(401);
 });
 
+test('POST /api/modify/propose-with-token without X-Auth-Token → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app)
+    .post('/api/modify/propose-with-token')
+    .send({ caseId: 'x', caseJson: '{}' })
+    .expect(401);
+});
+
+test('POST /api/modify/propose-with-token uses X-Auth-Token userId for proposeFromUserKeystore', async () => {
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+  const otp = 'tokentokentokentokentokentokentokentok';
+  tokenStore.issue('u-police-2', otp, 60_000);
+
+  const caseId = `MODIFY-TOKEN-${Date.now()}`;
+  const caseJsonInitial = buildVerifiedCaseJson(caseId, 'v1');
+  const aggInitial = JSON.parse(caseJsonInitial).aggregateHash;
+
+  const rs = require('../src/services/recordStore').getDefaultRecordStore();
+  rs.save(caseId, caseJsonInitial, aggInitial, 'police', '2026-01-15T12:00:00.000Z');
+
+  const caseJsonNew = buildVerifiedCaseJson(caseId, 'v2');
+  const aggNew = JSON.parse(caseJsonNew).aggregateHash;
+  assert.ok(integrity.verify(caseJsonNew));
+
+  const fixedProposalId = `0x${'be'.repeat(32)}`;
+
+  const caseRegistryTx = require('../src/services/caseRegistryTx');
+  const innerPropose = caseRegistryTx.proposeFromUserKeystore;
+  let seenUserId;
+  caseRegistryTx.proposeFromUserKeystore = async (opts) => {
+    seenUserId = opts.userId;
+    return innerPropose(opts);
+  };
+
+  try {
+    delete require.cache[require.resolve('../src/app')];
+    const { createApp } = require('../src/app');
+    const app = createApp();
+
+    await request(app)
+      .post('/api/modify/propose-with-token')
+      .set('X-Auth-Token', otp)
+      .send({
+        caseId,
+        caseJson: caseJsonNew,
+        aggregateHash: aggNew,
+        examiner: 'police',
+        generatedAt: '2026-02-01T12:00:00.000Z',
+        signingPassword: 'irrelevant-mocked',
+        proposalId: fixedProposalId,
+        reason: 'token path'
+      })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    assert.strictEqual(seenUserId, 'u-police-2');
+  } finally {
+    caseRegistryTx.proposeFromUserKeystore = innerPropose;
+    delete require.cache[require.resolve('../src/app')];
+  }
+});
+
 test('S7.1: propose + proposalCreated + judge GET returns Pending', async () => {
   const tokenStore = require('../src/services/tokenStore');
   tokenStore.clear();

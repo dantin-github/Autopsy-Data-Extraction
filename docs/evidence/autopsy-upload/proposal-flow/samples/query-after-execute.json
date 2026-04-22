@@ -1,0 +1,13 @@
+{
+  "caseId": "CASE-EXAMPLE-001",
+  "chain": {
+    "indexHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recordHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "blockNumber": 99
+  },
+  "integrity": {
+    "recordHashMatch": true,
+    "aggregateHashValid": true,
+    "crudRegistryOutOfSync": false
+  }
+}

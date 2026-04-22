@@ -1,6 +1,6 @@
-{"scenario":"non_police_createRecord","expected":"not police","txHash":"0x8e3336d8ea6c415e50e2bf3564053dd78acfb3b511850cc5f808648fd8647ad2","status":"0x16","revertReason":"not police"}
-{"scenario":"non_judge_approve","expected":"not judge","txHash":"0xaabf1afda991fcf011259a694e3eedf9ba064a1fffa81870df80ca9b83f2e6a2","status":"0x16","revertReason":"not judge"}
-{"scenario":"execute_without_approve","expected":"not approved","txHash":"0x96c91cfe2033e5db3eba46ffa497d0bf10619e8009a272c63563071b92aa3a9e","status":"0x16","revertReason":"not approved"}
-{"scenario":"duplicate_proposalId","expected":"proposal exists","txHash":"0x78f65e905a8c7a1af2beaeb097bdc66a6c01e7e3ce9a8d8b6d7c93b0cfaf2e56","status":"0x16","revertReason":"proposal exists"}
-{"scenario":"self_approve","expected":"self approve","txHash":"0x0dec3ada0cef7ea5220a1a26e5f930452801001650c190ff957bd474b3dd43ae","status":"0x16","revertReason":"self approve"}
-{"scenario":"non_proposer_execute","expected":"not proposer","txHash":"0x3110b2a3d96f1af0d1e1337ba58e32472b432f7ad788945c63096d0126993d72","status":"0x16","revertReason":"not proposer"}
+{"scenario":"non_police_createRecord","expected":"not police","txHash":"0x35c3d894e29123dfadca89b7756e629086f93056699999220a3f67062a97027a","status":"0x16","revertReason":"not police"}
+{"scenario":"non_judge_approve","expected":"not judge","txHash":"0x1d47f5f94b1f61c0edf682d97be949ad30333b456be03a0c95edcd0ab69440aa","status":"0x16","revertReason":"not judge"}
+{"scenario":"execute_without_approve","expected":"not approved","txHash":"0x871d6ca88640f35285393400f4d287a9d35a1ee0102addd7f4069e55f247aa1b","status":"0x16","revertReason":"not approved"}
+{"scenario":"duplicate_proposalId","expected":"proposal exists","txHash":"0x79699e26770b84d8cec5478bfe332490c9910d1d4942c1115ee7ed33df49cb1d","status":"0x16","revertReason":"proposal exists"}
+{"scenario":"self_approve","expected":"self approve","txHash":"0xb12b0d9c27551795f3279676563251b934db73d1a93d9f2a7ba74d7b04fc85d4","status":"0x16","revertReason":"self approve"}
+{"scenario":"non_police_execute","expected":"not police","txHash":"0x51a019f748d8bd91b7d3cb17ca685a48d00b39e8fc5afdac1e68690da76e80ce","status":"0x16","revertReason":"not police"}

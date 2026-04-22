@@ -1,0 +1,14 @@
+{
+  "proposalStatus": "success",
+  "requestStartedAt": "2026-04-22T12:00:00.100Z",
+  "responseAt": "2026-04-22T12:00:01.250Z",
+  "clientRoundTripMs": 1150,
+  "proposalId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+  "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "blockNumber": 42,
+  "caseId": "CASE-EXAMPLE-001",
+  "indexHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "oldRecordHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "newRecordHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "pendingKey": "CASE-EXAMPLE-001::pending-0x0000000000000000000000000000000000000000000000000000000000000001"
+}

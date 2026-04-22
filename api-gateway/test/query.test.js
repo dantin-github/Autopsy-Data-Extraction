@@ -83,6 +83,88 @@ function judgeAgent(app) {
     .then(() => agent);
 }
 
+test('GET /api/case-exists/:id without auth → 401', async () => {
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  await request(app).get('/api/case-exists/some-case').expect(401);
+});
+
+test('GET /api/case-exists judge session: exists false when registry empty', async () => {
+  const prevAddr = process.env.CASE_REGISTRY_ADDR;
+  process.env.CASE_REGISTRY_ADDR = `0x${'cd'.repeat(20)}`;
+  delete require.cache[require.resolve('../src/config')];
+
+  const caseRegistryTx = require('../src/services/caseRegistryTx');
+  const origReg = caseRegistryTx.getRecordHashOnRegistry;
+  caseRegistryTx.getRecordHashOnRegistry = async () => null;
+
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const agent = await judgeAgent(app);
+
+  const caseId = `EXISTS-NO-${Date.now()}`;
+  const res = await agent.get(`/api/case-exists/${encodeURIComponent(caseId)}`).expect(200);
+  assert.strictEqual(res.body.caseId, caseId);
+  assert.strictEqual(res.body.exists, false);
+  assert.strictEqual(res.body.recordHash, null);
+  assert.ok(String(res.body.indexHash || '').startsWith('0x'));
+
+  caseRegistryTx.getRecordHashOnRegistry = origReg;
+  if (prevAddr === undefined) {
+    delete process.env.CASE_REGISTRY_ADDR;
+  } else {
+    process.env.CASE_REGISTRY_ADDR = prevAddr;
+  }
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+});
+
+test('GET /api/case-exists X-Auth-Token: exists true when registry has hash', async () => {
+  const prevAddr = process.env.CASE_REGISTRY_ADDR;
+  process.env.CASE_REGISTRY_ADDR = `0x${'dc'.repeat(20)}`;
+  delete require.cache[require.resolve('../src/config')];
+
+  const tokenStore = require('../src/services/tokenStore');
+  tokenStore.clear();
+  const otp = 'caseexiststokencaseexiststoken12';
+  tokenStore.issue('u-police-1', otp, 60_000);
+
+  const caseId = `EXISTS-YES-${Date.now()}`;
+  const rh = `0x${'aa'.repeat(32)}`;
+
+  const caseRegistryTx = require('../src/services/caseRegistryTx');
+  const origReg = caseRegistryTx.getRecordHashOnRegistry;
+  caseRegistryTx.getRecordHashOnRegistry = async () => rh;
+
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+
+  const { createApp } = require('../src/app');
+  const app = createApp();
+
+  const res = await request(app)
+    .get(`/api/case-exists/${encodeURIComponent(caseId)}`)
+    .set('X-Auth-Token', otp)
+    .expect(200);
+
+  assert.strictEqual(res.body.exists, true);
+  assert.strictEqual(String(res.body.recordHash || '').toLowerCase(), rh.toLowerCase());
+
+  caseRegistryTx.getRecordHashOnRegistry = origReg;
+  if (prevAddr === undefined) {
+    delete process.env.CASE_REGISTRY_ADDR;
+  } else {
+    process.env.CASE_REGISTRY_ADDR = prevAddr;
+  }
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/routes/query')];
+  delete require.cache[require.resolve('../src/app')];
+});
+
 test('POST /api/query without judge session → 401', async () => {
   const { createApp } = require('../src/app');
   const app = createApp();

@@ -163,11 +163,10 @@ contract CaseRegistry {
         emit ProposalRejected(proposalId, msg.sender, reason);
     }
 
-    /// @dev 不变式：仅 Approved 且仅原 proposer 可执行；写回 recordHashes
+    /// @dev Approved 后任意 police 可执行（网关 system-executor 在法官 approve 后代为 execute）；写回 recordHashes
     function execute(bytes32 proposalId) public onlyPolice {
         Proposal storage p = proposals[proposalId];
         require(p.status == Status.Approved, "not approved");
-        require(msg.sender == p.proposer, "not proposer");
 
         bytes32 idx = p.indexHash;
         require(recordHashes[idx] == p.oldRecordHash, "record changed");

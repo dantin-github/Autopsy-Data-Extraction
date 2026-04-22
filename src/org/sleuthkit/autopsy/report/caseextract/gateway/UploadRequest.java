@@ -80,4 +80,23 @@ public final class UploadRequest {
         sb.append('}');
         return sb.toString();
     }
+
+    /**
+     * POST /api/modify/propose-with-token body (same core fields as upload plus {@code reason}).
+     */
+    public String toProposeJson(String signingPasswordForBody, String reason) {
+        String sp = signingPasswordForBody != null ? signingPasswordForBody : "";
+        String rs = reason != null ? reason : "";
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        sb.append("\"caseId\":").append(JsonStrings.quote(caseId));
+        sb.append(",\"examiner\":").append(JsonStrings.quote(examiner));
+        sb.append(",\"aggregateHash\":").append(JsonStrings.quote(aggregateHash));
+        sb.append(",\"generatedAt\":").append(JsonStrings.quote(generatedAt));
+        sb.append(",\"caseJson\":").append(JsonStrings.quote(caseJson));
+        sb.append(",\"signingPassword\":").append(JsonStrings.quote(sp));
+        sb.append(",\"reason\":").append(JsonStrings.quote(rs));
+        sb.append('}');
+        return sb.toString();
+    }
 }

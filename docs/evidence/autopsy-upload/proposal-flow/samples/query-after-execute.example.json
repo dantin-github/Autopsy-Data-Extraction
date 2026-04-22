@@ -1,0 +1,14 @@
+{
+  "_comment": "Illustrative POST /api/query body after judge approve + executor auto-execute; trim to fields you cite in the thesis.",
+  "caseId": "CASE-EXAMPLE-001",
+  "chain": {
+    "indexHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recordHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "blockNumber": 99
+  },
+  "integrity": {
+    "recordHashMatch": true,
+    "aggregateHashValid": true,
+    "crudRegistryOutOfSync": false
+  }
+}

@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-04-22：里程碑 — Autopsy 修改提案 + 网关自动 execute（P1–P5 闭环）
+
+**仓库：** `Autopsy-Data-Extraction`（根 `README.md` mermaid 已含 `POST /api/upload` 与 `POST /api/modify/propose-with-token`）。
+
+### 交付摘要
+
+| 阶段 | 内容 |
+|------|------|
+| **P1** | `CaseRegistry.execute()` 放宽 proposer 校验（executor 可签）；`system-executor`；`executeAsExecutor`；`POST /api/modify/propose-with-token`；`GET /api/case-exists/:caseId`；相关单测与 `.env.example`。 |
+| **P2** | `eventListener` 在 `ProposalApproved` 后 `executeAsExecutor`；`proposalAutoExecute.js`（`waitUntilProposalExecuted`、cursor 去重、`crudBacklog`）；`crudMirror.js` 重试/补偿复用。 |
+| **P3** | Autopsy：`GatewayClient.proposeModification` / `caseExists`；`ProposalResponse`、`ProposalReceiptWriter`；设置面板 **Upload** 与 **Submit as modification proposal** 互斥 + Reason；`build-patch-core.bat` 纳入新源文件；`[4c/5]` 备份旧 patched JAR。 |
+| **P4** | 真机：`install-patch-core.bat` 安装补丁；端到端 upload → propose → judge approve → 自动 execute；证据目录 `docs/evidence/autopsy-upload/proposal-flow/`。 |
+| **P5** | 根 README、证据索引、`autopsy_upload_integration_plan` §10、`04fd5518` nbm todo→core-patch、章节映射更新。 |
+
+### 运维注意（不入库文件）
+
+以下路径由 `.gitignore` 排除，仅本地/部署环境存在：`api-gateway/.env`、`data/users.json`、`data/keystore/*.enc`、`data/audit.jsonl`、`data/audit-state.json`、`data/executor-cursor.json`、`patch/core.jar`、打出来的 `patch/org-sleuthkit-autopsy-core-patched.jar` 等。
+
+### Cursor 计划（用户目录）
+
+主计划文件名：**`autopsy-modify-reupload-flow_4086644d.plan.md`**（P1–P5 已全部 **completed**）。
+
+---
+
 ## 2026-04：Judge Query「蓝条」与 `/api/query` 500
 
 ### 现象
@@ -75,4 +99,4 @@
 
 ---
 
-*Last updated: 2026-04-21*
+*Last updated: 2026-04-22*

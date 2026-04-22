@@ -2,6 +2,7 @@
 
 /**
  * P8: Poll new blocks for CaseRegistry contract logs and append JSON lines to audit.jsonl.
+ * P2: On ProposalApproved, optionally run executeAsExecutor + CRUD mirror (proposalAutoExecute).
  */
 
 const fs = require('fs');
@@ -12,6 +13,7 @@ const chain = require('./chain');
 const { logger } = require('../logger');
 const { parseReceiptBlockNumber } = require('./receiptBlockNumber');
 const { serializeEventArgs } = require('./auditEventArgs');
+const proposalAutoExecute = require('./proposalAutoExecute');
 
 const apiRoot = path.join(__dirname, '..', '..');
 const abiPath = path.join(apiRoot, 'build', 'CaseRegistry.abi');
@@ -78,7 +80,7 @@ function txHashFromBlockTx(tx) {
   return null;
 }
 
-async function processBlock(web3j, iface, contractAddrLower, blockNum) {
+async function processBlock(web3j, iface, contractAddrLower, blockNum, contractAddrForLog) {
   const resp = await web3j.getBlockByNumber(blockNumHex(blockNum), true);
   const block = resp && resp.result;
   if (!block) {
@@ -125,6 +127,30 @@ async function processBlock(web3j, iface, contractAddrLower, blockNum) {
           args: serializeEventArgs(iface, ev)
         });
         written += 1;
+
+        if (ev.name === 'ProposalApproved') {
+          try {
+            // ethers v4-style Interface.parseLog exposes `values`; newer ethers uses `args`.
+            const vals =
+              ev && ev.values !== undefined && ev.values !== null ? ev.values : ev && ev.args;
+            const proposalIdArg =
+              vals && vals.proposalId != null ? vals.proposalId : vals && vals[0];
+            if (proposalIdArg == null) {
+              throw new Error('ProposalApproved log missing proposalId');
+            }
+            const pidHex = ethers.utils.hexlify(proposalIdArg).toLowerCase();
+            await proposalAutoExecute.onProposalApprovedFromAudit({
+              proposalIdHex: pidHex,
+              txHash,
+              blockNumber
+            });
+          } catch (e) {
+            logger.warn(
+              { err: e && e.message ? String(e.message) : String(e), contract: contractAddrForLog },
+              'eventListener: autoExecute after ProposalApproved failed'
+            );
+          }
+        }
       } catch (_) {
         /* non-matching log */
       }
@@ -157,6 +183,8 @@ async function tick() {
 
   _running = true;
   try {
+    await proposalAutoExecute.drainCrudBacklogTick();
+
     const height = await chain.getBlockNumber();
     let state = loadState();
     let from = state.lastBlockSeen;
@@ -174,7 +202,7 @@ async function tick() {
     const to = Math.min(from + MAX_BLOCKS_PER_TICK, height);
     let total = 0;
     for (let b = from + 1; b <= to; b++) {
-      const n = await processBlock(web3j, iface, addr, b);
+      const n = await processBlock(web3j, iface, addr, b, config.caseRegistryAddr);
       total += n;
     }
     saveState({ lastBlockSeen: to });

@@ -25,9 +25,13 @@ that monitors plugin activity and verifies image-file integrity on every case op
   against the last exported report; the status window highlights any mismatch
   as a potential tampering warning
 - **Blockchain upload (optional)** — After the JSON report is saved, the module
-  can `POST` the export to **api-gateway** (`/api/upload`) with a one-time token;
+  can `POST` the export to **api-gateway** (`/api/upload`) with a police token;
   results are written to `upload_receipt.json`, appended to the main JSON as
   `uploadStatus`, and shown in **Case Data Extract Status → Upload Status**
+- **Modification proposal (optional)** — For cases already on **CaseRegistry**,
+  enable **Submit as modification proposal** in settings (mutually exclusive with upload);
+  the module calls **`POST /api/modify/propose-with-token`** and writes **`proposal_receipt.json`**.
+  After a judge **approves** on **judge-web**, the gateway **auto-executes** the proposal (no police `execute` step).
 
 ---
 
@@ -115,12 +119,13 @@ flowchart LR
   subgraph Chain[FISCO BCOS]
     C[CRUD + CaseRegistry]
   end
-  A -->|"case JSON export + optional POST /api/upload"| G
+  A -->|"POST /api/upload first on-chain record"| G
+  A -->|"POST /api/modify/propose-with-token modification"| G
   D -->|requests + session cookie| G
   G --> C
 ```
 
-*(Solid edges reflect the integrated paths in this repo: examiner-side export and optional upload to the gateway are implemented; judge-web remains HTTP-only to the gateway.)*
+*(Solid edges: Autopsy **upload** and **propose-with-token** are implemented in the report module; judge-web is HTTP-only to the gateway; after **approve**, the gateway executor auto-**executes** on-chain — see `docs/evidence/autopsy-upload/proposal-flow/`.)*
 
 ### Generating a report
 
@@ -146,7 +151,19 @@ and **OTP** are supplied, the plugin uploads the freshly written JSON to
 | Upload summary on the main report | `uploadStatus` / `uploadDetail` at end of `case_data_extract.json` |
 | Monitor snapshot | **Window → Case Data Extract Status → Upload Status** |
 
-**Thesis / evidence pack:** `docs/evidence/autopsy-upload/` (`mapping.md`, `samples/`, `screens/`).
+### Modification proposal (judge approval + auto-execute)
+
+When **Submit as modification proposal** is enabled (mutually exclusive with upload), the plugin calls **`POST /api/modify/propose-with-token`** and writes:
+
+| Output | Location |
+|--------|----------|
+| Proposal receipt | `.../CaseDataExtract/proposal_receipt.json` |
+
+After the judge **approves** on the dashboard, the gateway **automatically** runs **`execute`** (executor account); the police do not call `execute` from Autopsy. Verification: `GET /api/modify/<proposalId>` → `Executed`; `POST /api/query` → CRUD/registry consistent.
+
+**Evidence pack:** `docs/evidence/autopsy-upload/proposal-flow/` (P4 checklist, samples, screenshot placeholders).
+
+**Thesis / evidence pack:** `docs/evidence/autopsy-upload/` (`mapping.md`, `proposal-flow/`, `samples/`, `screens/`).
 
 **Deploy the plugin on Autopsy 4.22.x:** use the **core JAR patch** (`build-patch-core.bat` → run **`install-patch-core.bat`** as Administrator), not the standard NBM-only flow — see `.cursor/rules/autopsy-core-patch-deployment.mdc`.
 

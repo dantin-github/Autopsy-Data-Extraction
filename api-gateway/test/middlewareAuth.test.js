@@ -2,6 +2,8 @@
 
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-mw-session-secret';
 process.env.MAIL_DRY_RUN = process.env.MAIL_DRY_RUN || '1';
+/* Isolate from developer .env (X_AUTH_TOKEN_SINGLE_USE=0 breaks single-use expectation). */
+process.env.X_AUTH_TOKEN_SINGLE_USE = '1';
 
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -74,11 +76,7 @@ test('__police-only: X_AUTH_TOKEN_SINGLE_USE=0 same token → 200 twice', async 
     assert.strictEqual(a.body.userId, 'u-police-1');
     assert.strictEqual(b.body.userId, 'u-police-1');
   } finally {
-    if (prev === undefined) {
-      delete process.env.X_AUTH_TOKEN_SINGLE_USE;
-    } else {
-      process.env.X_AUTH_TOKEN_SINGLE_USE = prev;
-    }
+    process.env.X_AUTH_TOKEN_SINGLE_USE = prev !== undefined ? prev : '1';
     delete require.cache[require.resolve('../src/config')];
     delete require.cache[require.resolve('../src/middleware/requirePoliceToken')];
     delete require.cache[require.resolve('../src/app')];

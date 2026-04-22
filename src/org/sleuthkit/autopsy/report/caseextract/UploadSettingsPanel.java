@@ -15,6 +15,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -26,11 +28,12 @@ import org.sleuthkit.autopsy.report.caseextract.gateway.PingResult;
 
 /**
  * Report wizard configuration UI for gateway upload (Phase 3 §5.1 / S3.2, URL validation S3.4).
+ * P3: mutually exclusive {@code Upload after save} vs {@code Submit as modification proposal} + Reason.
  * Chain path is CaseRegistry only ({@code contract}); gateway {@code CHAIN_MODE=contract}.
  */
 final class UploadSettingsPanel extends JPanel {
 
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
     /** Same as plan S3.4; applied early for invalid URL feedback next to field. */
     private static final Pattern GATEWAY_URL_PATTERN =
@@ -41,6 +44,8 @@ final class UploadSettingsPanel extends JPanel {
     private final JTextField gatewayUrlField = new JTextField(24);
     private final JLabel gatewayUrlError = new JLabel("!");
     private final JCheckBox uploadAfterSaveCheck = new JCheckBox("Upload after save");
+    private final JCheckBox proposalEnabledCheck = new JCheckBox("Submit as modification proposal");
+    private final JTextArea proposalReasonArea = new JTextArea(3, 24);
     private final JCheckBox uploadTimingCheck =
             new JCheckBox("Request upload timing (X-Debug-Timing)");
     private final JPasswordField otpField = new JPasswordField(24);
@@ -50,10 +55,20 @@ final class UploadSettingsPanel extends JPanel {
 
     /** Suppress ItemListener side effects while programmatically reverting upload (S3.4). */
     private boolean revertingUploadForInvalidUrl;
+    private boolean revertingProposalForInvalidUrl;
+    private boolean suppressUploadListener;
+    private boolean suppressProposalListener;
 
     UploadSettingsPanel() {
         super(new GridBagLayout());
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        proposalReasonArea.setLineWrap(true);
+        proposalReasonArea.setWrapStyleWord(true);
+        proposalReasonArea.setToolTipText("Required when submitting a modification proposal for judge review.");
+
+        proposalEnabledCheck.setToolTipText(
+                "Use when the case is already on chain; submits a proposal for judge approval.");
 
         gatewayUrlError.setForeground(Color.RED);
         gatewayUrlError.setVisible(false);
@@ -63,8 +78,8 @@ final class UploadSettingsPanel extends JPanel {
 
         uploadAfterSaveCheck.addItemListener(
                 e -> {
-                    if (revertingUploadForInvalidUrl) {
-                        applyUploadDependentEnabledState();
+                    if (suppressUploadListener || revertingUploadForInvalidUrl) {
+                        applyChainActionEnabledState();
                         return;
                     }
                     if (e.getStateChange() == ItemEvent.SELECTED) {
@@ -80,16 +95,57 @@ final class UploadSettingsPanel extends JPanel {
                                                         ? "Enter a valid gateway URL before enabling upload."
                                                         : "Invalid gateway URL. Fix the URL before enabling upload.");
                                         revertingUploadForInvalidUrl = false;
-                                        applyUploadDependentEnabledState();
+                                        applyChainActionEnabledState();
                                     });
                             return;
                         }
+                        suppressProposalListener = true;
+                        proposalEnabledCheck.setSelected(false);
+                        suppressProposalListener = false;
                     }
                     if (e.getStateChange() == ItemEvent.DESELECTED) {
-                        connectionStatusLabel.setText("Not tested");
-                        connectionStatusLabel.setForeground(null);
+                        if (!proposalEnabledCheck.isSelected()) {
+                            connectionStatusLabel.setText("Not tested");
+                            connectionStatusLabel.setForeground(null);
+                        }
                     }
-                    applyUploadDependentEnabledState();
+                    applyChainActionEnabledState();
+                });
+
+        proposalEnabledCheck.addItemListener(
+                e -> {
+                    if (suppressProposalListener || revertingProposalForInvalidUrl) {
+                        applyChainActionEnabledState();
+                        return;
+                    }
+                    if (e.getStateChange() == ItemEvent.SELECTED) {
+                        if (!isGatewayUrlValid()) {
+                            revertingProposalForInvalidUrl = true;
+                            SwingUtilities.invokeLater(
+                                    () -> {
+                                        proposalEnabledCheck.setSelected(false);
+                                        connectionStatusLabel.setForeground(Color.RED);
+                                        String t = gatewayUrlField.getText().trim();
+                                        connectionStatusLabel.setText(
+                                                t.isEmpty()
+                                                        ? "Enter a valid gateway URL before enabling proposal."
+                                                        : "Invalid gateway URL. Fix the URL before enabling proposal.");
+                                        revertingProposalForInvalidUrl = false;
+                                        applyChainActionEnabledState();
+                                    });
+                            return;
+                        }
+                        suppressUploadListener = true;
+                        uploadAfterSaveCheck.setSelected(false);
+                        suppressUploadListener = false;
+                    }
+                    if (e.getStateChange() == ItemEvent.DESELECTED) {
+                        if (!uploadAfterSaveCheck.isSelected()) {
+                            connectionStatusLabel.setText("Not tested");
+                            connectionStatusLabel.setForeground(null);
+                        }
+                    }
+                    applyChainActionEnabledState();
                 });
 
         gatewayUrlField
@@ -117,18 +173,23 @@ final class UploadSettingsPanel extends JPanel {
         uploadTimingCheck.setToolTipText(
                 "When enabled, the gateway may include timing fields in the upload response (diagnostics).");
 
+        JScrollPane reasonScroll = new JScrollPane(proposalReasonArea);
+        reasonScroll.setMinimumSize(new Dimension(200, 72));
+
         int row = 0;
         addRow(
                 row++,
                 label("Gateway Base URL"),
                 gatewayUrlRow());
         addRow(row++, label(" "), uploadAfterSaveCheck);
+        addRow(row++, label(" "), proposalEnabledCheck);
+        addRow(row++, label("Reason"), reasonScroll);
         addRow(row++, label(" "), uploadTimingCheck);
         addRow(row++, label("Token"), otpField);
         addRow(row++, label("Signing password"), signingPasswordField);
         addRow(row++, label(" "), testConnectionRow());
 
-        applyUploadDependentEnabledState();
+        applyChainActionEnabledState();
     }
 
     private static JLabel label(String text) {
@@ -174,13 +235,16 @@ final class UploadSettingsPanel extends JPanel {
         add(field, c);
     }
 
-    private void applyUploadDependentEnabledState() {
-        boolean up = uploadAfterSaveCheck.isSelected();
-        uploadTimingCheck.setEnabled(up);
-        otpField.setEnabled(up);
-        signingPasswordField.setEnabled(up);
-        testConnectionButton.setEnabled(up);
-        if (!up) {
+    private void applyChainActionEnabledState() {
+        boolean upload = uploadAfterSaveCheck.isSelected();
+        boolean prop = proposalEnabledCheck.isSelected();
+        boolean chain = upload || prop;
+        uploadTimingCheck.setEnabled(upload);
+        proposalReasonArea.setEnabled(prop);
+        otpField.setEnabled(chain);
+        signingPasswordField.setEnabled(chain);
+        testConnectionButton.setEnabled(chain);
+        if (!chain) {
             connectionStatusLabel.setForeground(null);
         }
     }
@@ -209,7 +273,7 @@ final class UploadSettingsPanel extends JPanel {
     }
 
     private void runTestConnection() {
-        if (!uploadAfterSaveCheck.isSelected()) {
+        if (!uploadAfterSaveCheck.isSelected() && !proposalEnabledCheck.isSelected()) {
             return;
         }
         String base = gatewayUrlField.getText().trim();
@@ -231,7 +295,8 @@ final class UploadSettingsPanel extends JPanel {
 
                     @Override
                     protected void done() {
-                        testConnectionButton.setEnabled(uploadAfterSaveCheck.isSelected());
+                        boolean chain = uploadAfterSaveCheck.isSelected() || proposalEnabledCheck.isSelected();
+                        testConnectionButton.setEnabled(chain);
                         try {
                             PingResult p = get();
                             if (p.isOk()) {
@@ -264,14 +329,20 @@ final class UploadSettingsPanel extends JPanel {
                 s != null ? s : new CaseDataExtractReportModuleSettings();
         gatewayUrlField.setText(src.getGatewayUrl());
         boolean up = src.isUploadEnabled();
+        boolean prop = src.isProposalEnabled();
+        if (up && prop) {
+            prop = false;
+        }
         uploadAfterSaveCheck.setSelected(up && isGatewayUrlValidFor(src.getGatewayUrl()));
+        proposalEnabledCheck.setSelected(prop && isGatewayUrlValidFor(src.getGatewayUrl()));
+        proposalReasonArea.setText(src.getProposalReason());
         uploadTimingCheck.setSelected(src.isUploadRequestTiming());
         otpField.setText(src.getOneTimeToken());
         signingPasswordField.setText(src.getSigningPassword());
         connectionStatusLabel.setText("Not tested");
         connectionStatusLabel.setForeground(null);
         refreshUrlErrorIndicator();
-        applyUploadDependentEnabledState();
+        applyChainActionEnabledState();
         SwingUtilities.invokeLater(this::revalidate);
     }
 
@@ -282,7 +353,13 @@ final class UploadSettingsPanel extends JPanel {
         String url = gatewayUrlField.getText().trim();
         target.setGatewayUrl(url);
         boolean up = uploadAfterSaveCheck.isSelected();
+        boolean prop = proposalEnabledCheck.isSelected();
+        if (up && prop) {
+            prop = false;
+        }
         target.setUploadEnabled(up && isGatewayUrlValidFor(url));
+        target.setProposalEnabled(prop && isGatewayUrlValidFor(url));
+        target.setProposalReason(proposalReasonArea.getText());
         target.setContractMode("contract");
         target.setUploadRequestTiming(uploadTimingCheck.isSelected());
         target.setOneTimeToken(new String(otpField.getPassword()));

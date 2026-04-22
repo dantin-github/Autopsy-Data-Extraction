@@ -27,6 +27,7 @@ e2e-propose-body.json
 # Runtime audit log (local chain)
 data/audit.jsonl
 data/audit-state.json
+data/executor-cursor.json
 
 # solc output (regenerate: npm run compile -- contracts/HelloWorld.sol)
 build/

@@ -115,6 +115,10 @@ test('S4.3: CaseRegistry happy path on chain (deploy + events + getProposal)', a
     type: 'ecrandom',
     value: crypto.randomBytes(32).toString('hex')
   };
+  base.accounts.police2 = {
+    type: 'ecrandom',
+    value: crypto.randomBytes(32).toString('hex')
+  };
   base.accounts.judge = {
     type: 'ecrandom',
     value: crypto.randomBytes(32).toString('hex')
@@ -129,6 +133,7 @@ test('S4.3: CaseRegistry happy path on chain (deploy + events + getProposal)', a
     web3j = new Web3jService(cfg);
 
     const policeAddr = cfg.accounts.police.account;
+    const police2Addr = cfg.accounts.police2.account;
     const judgeAddr = cfg.accounts.judge.account;
 
     const deployReceipt = await web3j.deploy(abi, bin, [], 'gateway');
@@ -140,6 +145,9 @@ test('S4.3: CaseRegistry happy path on chain (deploy + events + getProposal)', a
 
     const rAddP = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'addPolice'), [policeAddr], 'gateway');
     assertReceiptSuccess(rAddP, 'addPolice');
+
+    const rAddP2 = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'addPolice'), [police2Addr], 'gateway');
+    assertReceiptSuccess(rAddP2, 'addPolice2');
 
     const rAddJ = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'addJudge'), [judgeAddr], 'gateway');
     assertReceiptSuccess(rAddJ, 'addJudge');
@@ -183,7 +191,7 @@ test('S4.3: CaseRegistry happy path on chain (deploy + events + getProposal)', a
     assert.strictEqual(Number(decA[5]), 2, 'status Approved');
     assert.strictEqual(String(decA[4]).toLowerCase(), judgeAddr.toLowerCase(), 'approver is judge');
 
-    const rExec = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'execute'), [proposalId], 'police');
+    const rExec = await web3j.sendRawTransaction(contractAddr, pickFn(abi, 'execute'), [proposalId], 'police2');
     assertReceiptSuccess(rExec, 'execute');
     const evEx = parseEventNames(rExec, iface);
     assert.ok(evEx.includes('ProposalExecuted'), `expected ProposalExecuted, got ${evEx.join(',')}`);

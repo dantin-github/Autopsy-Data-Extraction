@@ -8,3 +8,5 @@ The legacy **Case Data Extract** plugin plan (`autopsy_案件数据提取插件_
 - **`docs/evidence/autopsy-upload/`** (this folder)
 
 **Deployment wording:** the authoritative install path for Autopsy **4.22.x** in this project is the **core JAR patch** (`build-patch-core.bat` / `install-patch-core.bat`), not standard NBM installation — see `.cursor/rules/autopsy-core-patch-deployment.mdc`.
+
+**Modification workflow (propose → approve → auto-execute):** see **`proposal-flow/README.md`** and Cursor plan **autopsy-modify-reupload-flow**; Autopsy calls `POST /api/modify/propose-with-token`; no separate police Web UI.

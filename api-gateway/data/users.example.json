@@ -24,6 +24,13 @@
     "passwordPlain": "1"
   },
   {
+    "userId": "system-executor",
+    "username": "system-executor",
+    "email": "executor@internal.local",
+    "role": "police",
+    "passwordPlain": "executor-change-me"
+  },
+  {
     "userId": "u-judge-1",
     "username": "judge1",
     "email": "judge1@example.com",

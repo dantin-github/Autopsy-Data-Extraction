@@ -8,8 +8,59 @@ const { getDefaultRecordStore } = require('../services/recordStore');
 const chain = require('../services/chain');
 const caseRegistryTx = require('../services/caseRegistryTx');
 const requireJudgeSession = require('../middleware/requireJudgeSession');
+const requirePoliceTokenOrAnySession = require('../middleware/requirePoliceTokenOrAnySession');
 
 const router = express.Router();
+
+/** Strip accidental ``caseId=…`` prefix from path or copy-paste. */
+function normalizeCaseIdParam(raw) {
+  let s = raw != null ? String(raw).trim() : '';
+  if (s === '') {
+    return '';
+  }
+  return s.replace(/^caseId\s*=\s*/i, '').trim();
+}
+
+/**
+ * GET /api/case-exists/:caseId — police token or any session; CaseRegistry.getRecordHash for index(caseId).
+ */
+router.get('/api/case-exists/:caseId', requirePoliceTokenOrAnySession, async (req, res, next) => {
+  const caseId = normalizeCaseIdParam(req.params.caseId);
+  if (caseId === '') {
+    const err = new Error('caseId is required');
+    err.status = 400;
+    return next(err);
+  }
+
+  if (!String(config.caseRegistryAddr || '').trim()) {
+    const err = new Error('CASE_REGISTRY_ADDR is not configured');
+    err.status = 503;
+    err.code = 'CASE_REGISTRY_ADDR_MISSING';
+    return next(err);
+  }
+
+  const indexHashRaw = hashOnly.computeIndexHash(caseId);
+
+  try {
+    const registryRh = await caseRegistryTx.getRecordHashOnRegistry(indexHashRaw);
+    const exists = registryRh != null && String(registryRh).trim() !== '';
+    return res.status(200).json({
+      caseId,
+      exists,
+      indexHash: toHex0x(indexHashRaw),
+      recordHash: exists ? String(registryRh).toLowerCase() : null
+    });
+  } catch (e) {
+    if (e && e.code === 'CHAIN_NOT_CONFIGURED') {
+      e.status = 503;
+    } else if (e && e.code === 'CASE_REGISTRY_ABI_MISSING') {
+      e.status = 503;
+    } else if (e && e.code === 'CASE_REGISTRY_ADDR_MISSING') {
+      e.status = 503;
+    }
+    return next(e);
+  }
+});
 
 function toHex0x(hexMaybe) {
   const s = String(hexMaybe).trim().replace(/^0x/i, '');
