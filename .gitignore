@@ -102,3 +102,9 @@ tests/
 
 # Ephemeral upload session markers (do not distribute)
 api-gateway/conf/.fisco-upload-*.json
+
+# ----------------------------------------------------------------------
+# Dissertation (local): Chinese-only sections and Word drafts — not on remote
+# ----------------------------------------------------------------------
+Draft.docx
+**/*_CN.md
