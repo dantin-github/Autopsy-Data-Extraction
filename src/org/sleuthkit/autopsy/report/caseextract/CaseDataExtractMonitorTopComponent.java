@@ -291,9 +291,11 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
         uploadTable.getColumnModel().getColumn(1).setPreferredWidth(w);
     }
 
-    /** Phase 5 S5.3: error detail rows only for failed uploads (not success / cancelled / skipped). */
+    /** Error detail rows for failed uploads and failed proposals. */
     private static boolean uploadFailed(UploadSnapshot u) {
-        return u != null && "failed".equalsIgnoreCase(u.getStatus());
+        return u != null
+                && ("failed".equalsIgnoreCase(u.getStatus())
+                        || "proposal_failed".equalsIgnoreCase(u.getStatus()));
     }
 
     private static boolean isGatewayUnreachableKind(String errorKind) {
@@ -301,6 +303,9 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
     }
 
     private static List<String[]> buildUploadRows(UploadSnapshot u) {
+        if (u.isProposal()) {
+            return buildProposalRows(u);
+        }
         List<String[]> rows = new ArrayList<>(24);
         rows.add(new String[] {"Status", nz(u.getStatus())});
         rows.add(new String[] {"Case ID", nz(u.getCaseId())});
@@ -335,6 +340,33 @@ public final class CaseDataExtractMonitorTopComponent extends TopComponent {
                     new String[] {
                         "HTTP status", u.getHttpStatus() == 0 ? "N/A" : String.valueOf(u.getHttpStatus())
                     });
+        }
+        return rows;
+    }
+
+    private static List<String[]> buildProposalRows(UploadSnapshot u) {
+        List<String[]> rows = new ArrayList<>(16);
+        String displayStatus = "proposal_success".equalsIgnoreCase(u.getStatus()) ? "proposal / success"
+                : "proposal_failed".equalsIgnoreCase(u.getStatus()) ? "proposal / failed"
+                : nz(u.getStatus());
+        rows.add(new String[] {"Status", displayStatus});
+        rows.add(new String[] {"Case ID", nz(u.getCaseId())});
+        rows.add(new String[] {"Request sent (UTC)", fmtInstant(u.getUploadStartedAt())});
+        rows.add(new String[] {"Response (UTC)", fmtInstant(u.getUploadResponseAt())});
+        rows.add(new String[] {"Client round-trip (ms)", String.valueOf(u.getClientRoundTripMs())});
+        rows.add(new String[] {"Proposal ID", naOrString(u.getProposalId())});
+        rows.add(new String[] {"Proposal tx hash", naOrString(u.getTxHash())});
+        rows.add(new String[] {"Block number", naOrLong(u.getBlockNumber())});
+        rows.add(new String[] {"Index hash", naOrString(u.getIndexHash())});
+        rows.add(new String[] {"Old record hash", naOrString(u.getOldRecordHash())});
+        rows.add(new String[] {"New record hash", naOrString(u.getRecordHash())});
+        rows.add(new String[] {"Pending key", naOrString(u.getPendingKey())});
+        if (uploadFailed(u)) {
+            rows.add(new String[] {"Error kind", naOrString(u.getErrorKind())});
+            rows.add(new String[] {"Error message", naOrString(u.getErrorMessage())});
+            rows.add(new String[] {
+                "HTTP status", u.getHttpStatus() == 0 ? "N/A" : String.valueOf(u.getHttpStatus())
+            });
         }
         return rows;
     }

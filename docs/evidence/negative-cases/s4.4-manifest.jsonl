@@ -1,6 +1,6 @@
-{"scenario":"non_police_createRecord","expected":"not police","txHash":"0x35c3d894e29123dfadca89b7756e629086f93056699999220a3f67062a97027a","status":"0x16","revertReason":"not police"}
-{"scenario":"non_judge_approve","expected":"not judge","txHash":"0x1d47f5f94b1f61c0edf682d97be949ad30333b456be03a0c95edcd0ab69440aa","status":"0x16","revertReason":"not judge"}
-{"scenario":"execute_without_approve","expected":"not approved","txHash":"0x871d6ca88640f35285393400f4d287a9d35a1ee0102addd7f4069e55f247aa1b","status":"0x16","revertReason":"not approved"}
-{"scenario":"duplicate_proposalId","expected":"proposal exists","txHash":"0x79699e26770b84d8cec5478bfe332490c9910d1d4942c1115ee7ed33df49cb1d","status":"0x16","revertReason":"proposal exists"}
-{"scenario":"self_approve","expected":"self approve","txHash":"0xb12b0d9c27551795f3279676563251b934db73d1a93d9f2a7ba74d7b04fc85d4","status":"0x16","revertReason":"self approve"}
-{"scenario":"non_police_execute","expected":"not police","txHash":"0x51a019f748d8bd91b7d3cb17ca685a48d00b39e8fc5afdac1e68690da76e80ce","status":"0x16","revertReason":"not police"}
+{"scenario":"non_police_createRecord","expected":"not police","txHash":"0x6dbb8cf0c6e750908a86949a69a71a6996fcd327b50e1b9325729dfaf15afe9b","status":"0x16","revertReason":"not police"}
+{"scenario":"non_judge_approve","expected":"not judge","txHash":"0x89425ab1dc0f9e297ac7132175b2233cb52df30694a66555ccc1cfeb00e6921b","status":"0x16","revertReason":"not judge"}
+{"scenario":"execute_without_approve","expected":"not approved","txHash":"0xcc6fa7edb41c011f3e5d80677594d9fe7d32e113250448ed0b640bf60bad7437","status":"0x16","revertReason":"not approved"}
+{"scenario":"duplicate_proposalId","expected":"proposal exists","txHash":"0x0c52a143b0094b659fbeef759f94edc37828eb027b7f0bc691d55063358f7651","status":"0x16","revertReason":"proposal exists"}
+{"scenario":"self_approve","expected":"self approve","txHash":"0xce09ec3312f12d305028a7eef8b2d8995d6bee7bd76ffa5d3c4dc619122d2c20","status":"0x16","revertReason":"self approve"}
+{"scenario":"non_police_execute","expected":"not police","txHash":"0xfa840c7bdc690e5b2c39e6c23135689b97fde95a90fa6b486997bdf5a5ce87c6","status":"0x16","revertReason":"not police"}

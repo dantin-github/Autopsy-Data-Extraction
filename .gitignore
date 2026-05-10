@@ -85,3 +85,20 @@ nbproject/private/
 
 # Python pytest
 .pytest_cache/
+
+# ----------------------------------------------------------------------
+# Perf evidence — generated results (JSONL/CSV/MD): not pushed; regenerate via api-gateway npm perf:*.
+# Perf driver scripts live under api-gateway/scripts/perf/ (tracked).
+# Include nested copies under api-gateway/docs/.../results/.
+# ----------------------------------------------------------------------
+**/evidence/perf/results/
+docs/evidence/perf/results/
+
+# ----------------------------------------------------------------------
+# Tests — not pushed to public remote per repo policy (regenerate locally from package.json).
+# ----------------------------------------------------------------------
+api-gateway/test/
+tests/
+
+# Ephemeral upload session markers (do not distribute)
+api-gateway/conf/.fisco-upload-*.json

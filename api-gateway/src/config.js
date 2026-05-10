@@ -128,6 +128,11 @@ const uploadUseCaseRegistry = ['1', 'true', 'yes'].includes(
 const chainModeRaw = String(process.env.CHAIN_MODE || 'contract').trim().toLowerCase();
 const chainMode = chainModeRaw === 'contract' ? 'contract' : 'crud';
 
+/** When true with contract upload enabled, skip CRUD `insertRecord` and only send CaseRegistry.createRecord (one chain transaction). */
+const uploadSingleChainTx = ['1', 'true', 'yes'].includes(
+  String(process.env.UPLOAD_SINGLE_CHAIN_TX || '').toLowerCase()
+);
+
 function uploadContractEnabled() {
   if (!caseRegistryAddr) {
     return false;
@@ -136,6 +141,11 @@ function uploadContractEnabled() {
     return true;
   }
   return uploadUseCaseRegistry;
+}
+
+/** Registry-only on-chain write during upload (requires contract upload path). */
+function uploadSkipsCrudInsert() {
+  return uploadContractEnabled() && uploadSingleChainTx;
 }
 
 const auditLogPath =
@@ -225,6 +235,8 @@ module.exports = {
   uploadUseCaseRegistry,
   chainMode,
   uploadContractEnabled,
+  uploadSingleChainTx,
+  uploadSkipsCrudInsert,
   auditLogPath,
   auditStatePath,
   eventListenerPollMs,

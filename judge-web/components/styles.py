@@ -24,9 +24,10 @@ def _shield_svg() -> str:
 
 def login_brand_html(
     *,
-    title: str = "Central Gateway",
+    title: str = "Judge Dashboard",
     subtitle: str = (
-        "Authenticated access to case hash services and chain-backed evidence workflows."
+        "Sign in with your judge account for hash-indexed case queries, "
+        "judicial review, and audit trails. Not for police or examiner tooling."
     ),
     badge: str = "Digital forensics",
 ) -> str:

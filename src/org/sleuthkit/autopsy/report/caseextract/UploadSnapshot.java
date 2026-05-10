@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import org.sleuthkit.autopsy.report.caseextract.gateway.GatewayUploadException;
+import org.sleuthkit.autopsy.report.caseextract.gateway.ProposalResponse;
 import org.sleuthkit.autopsy.report.caseextract.gateway.SimpleJson;
 import org.sleuthkit.autopsy.report.caseextract.gateway.UploadResponse;
 
@@ -41,6 +42,12 @@ public final class UploadSnapshot {
     private final String errorKind;
     private final String errorMessage;
     private final int httpStatus;
+    /** Proposal ID returned by POST /api/modify/propose-with-token (proposal path only). */
+    private final String proposalId;
+    /** Pending-proposal key for follow-up queries (proposal path only). */
+    private final String pendingKey;
+    /** The previous on-chain record hash before the proposal (proposal path only). */
+    private final String oldRecordHash;
     /** Receipt file lastModified when this snapshot was loaded from disk (0 if built in-session). */
     private final long receiptSourceLastModifiedMs;
 
@@ -62,6 +69,9 @@ public final class UploadSnapshot {
         this.errorKind = b.errorKind != null ? b.errorKind : "";
         this.errorMessage = b.errorMessage != null ? b.errorMessage : "";
         this.httpStatus = b.httpStatus;
+        this.proposalId = b.proposalId != null ? b.proposalId : "";
+        this.pendingKey = b.pendingKey != null ? b.pendingKey : "";
+        this.oldRecordHash = b.oldRecordHash != null ? b.oldRecordHash : "";
         this.receiptSourceLastModifiedMs = b.receiptSourceLastModifiedMs;
     }
 
@@ -131,6 +141,23 @@ public final class UploadSnapshot {
 
     public int getHttpStatus() {
         return httpStatus;
+    }
+
+    public String getProposalId() {
+        return proposalId;
+    }
+
+    public String getPendingKey() {
+        return pendingKey;
+    }
+
+    public String getOldRecordHash() {
+        return oldRecordHash;
+    }
+
+    /** True when this snapshot represents a proposal submission rather than a direct upload. */
+    public boolean isProposal() {
+        return status != null && status.startsWith("proposal_");
     }
 
     public long getReceiptSourceLastModifiedMs() {
@@ -218,6 +245,52 @@ public final class UploadSnapshot {
         return new UploadSnapshot(b);
     }
 
+    /** Proposal path: successful POST /api/modify/propose-with-token. */
+    public static UploadSnapshot fromProposalSuccess(
+            String caseId,
+            Instant requestStartedAt,
+            Instant responseAt,
+            long clientRoundTripMs,
+            ProposalResponse resp) {
+        Builder b = new Builder();
+        b.caseId = caseId;
+        b.status = "proposal_success";
+        b.uploadStartedAt = requestStartedAt;
+        b.uploadResponseAt = responseAt;
+        b.clientRoundTripMs = clientRoundTripMs;
+        if (resp != null) {
+            b.proposalId = resp.getProposalId();
+            b.txHash = resp.getTxHash();
+            b.blockNumber = resp.getBlockNumber();
+            b.indexHash = resp.getIndexHash();
+            b.oldRecordHash = resp.getOldRecordHash();
+            b.recordHash = resp.getNewRecordHash();
+            b.pendingKey = resp.getPendingKey();
+        }
+        return new UploadSnapshot(b);
+    }
+
+    /** Proposal path: failed POST /api/modify/propose-with-token. */
+    public static UploadSnapshot fromProposalFailure(
+            String caseId,
+            Instant requestStartedAt,
+            Instant responseAt,
+            long clientRoundTripMs,
+            GatewayUploadException e) {
+        Builder b = new Builder();
+        b.caseId = caseId;
+        b.status = "proposal_failed";
+        b.uploadStartedAt = requestStartedAt;
+        b.uploadResponseAt = responseAt;
+        b.clientRoundTripMs = clientRoundTripMs;
+        if (e != null) {
+            b.errorKind = e.getKind().name();
+            b.httpStatus = e.getHttpStatus();
+            b.errorMessage = e.getMessage() != null ? e.getMessage() : "";
+        }
+        return new UploadSnapshot(b);
+    }
+
     /** In-memory only (no {@code upload_receipt.json}); e.g. invalid URL or missing token. */
     public static UploadSnapshot fromSkipped(String caseId, String reasonCode) {
         Builder b = new Builder();
@@ -253,22 +326,43 @@ public final class UploadSnapshot {
         Builder b = new Builder();
         b.receiptSourceLastModifiedMs = receiptLastModifiedMs;
         b.caseId = caseIdHint != null ? caseIdHint : "";
-        b.status = str(m, "uploadStatus");
-        b.uploadStartedAt = parseInstant(str(m, "uploadStartedAt"));
-        b.uploadResponseAt = parseInstant(str(m, "uploadResponseAt"));
-        b.clientRoundTripMs = longVal(m.get("clientRoundTripMs"), 0L);
-        b.requestId = str(m, "requestId");
-        b.blockTimestampUtc = str(m, "blockTimestampUtc");
-        b.indexHash = str(m, "indexHash");
-        b.recordHash = str(m, "recordHash");
-        b.txHash = str(m, "txHash");
-        b.blockNumber = longObject(m.get("blockNumber"));
-        b.caseRegistryTxHash = str(m, "caseRegistryTxHash");
-        b.caseRegistryBlockNumber = longObject(m.get("caseRegistryBlockNumber"));
-        b.errorKind = str(m, "errorKind");
-        b.errorMessage = str(m, "errorMessage");
-        b.httpStatus = (int) longVal(m.get("httpStatus"), 0L);
-        b.timing = timingFromMap(m.get("timing"));
+
+        String proposalStatus = str(m, "proposalStatus");
+        if (proposalStatus != null && !proposalStatus.isEmpty()) {
+            // proposal_receipt.json format
+            b.status = "proposal_" + proposalStatus;
+            b.uploadStartedAt = parseInstant(str(m, "requestStartedAt"));
+            b.uploadResponseAt = parseInstant(str(m, "responseAt"));
+            b.clientRoundTripMs = longVal(m.get("clientRoundTripMs"), 0L);
+            b.proposalId = str(m, "proposalId");
+            b.txHash = str(m, "txHash");
+            b.blockNumber = longObject(m.get("blockNumber"));
+            b.indexHash = str(m, "indexHash");
+            b.oldRecordHash = str(m, "oldRecordHash");
+            b.recordHash = str(m, "newRecordHash");
+            b.pendingKey = str(m, "pendingKey");
+            b.errorKind = str(m, "errorKind");
+            b.errorMessage = str(m, "errorMessage");
+            b.httpStatus = (int) longVal(m.get("httpStatus"), 0L);
+        } else {
+            // upload_receipt.json format
+            b.status = str(m, "uploadStatus");
+            b.uploadStartedAt = parseInstant(str(m, "uploadStartedAt"));
+            b.uploadResponseAt = parseInstant(str(m, "uploadResponseAt"));
+            b.clientRoundTripMs = longVal(m.get("clientRoundTripMs"), 0L);
+            b.requestId = str(m, "requestId");
+            b.blockTimestampUtc = str(m, "blockTimestampUtc");
+            b.indexHash = str(m, "indexHash");
+            b.recordHash = str(m, "recordHash");
+            b.txHash = str(m, "txHash");
+            b.blockNumber = longObject(m.get("blockNumber"));
+            b.caseRegistryTxHash = str(m, "caseRegistryTxHash");
+            b.caseRegistryBlockNumber = longObject(m.get("caseRegistryBlockNumber"));
+            b.errorKind = str(m, "errorKind");
+            b.errorMessage = str(m, "errorMessage");
+            b.httpStatus = (int) longVal(m.get("httpStatus"), 0L);
+            b.timing = timingFromMap(m.get("timing"));
+        }
         return new UploadSnapshot(b);
     }
 
@@ -286,6 +380,8 @@ public final class UploadSnapshot {
                 cr);
     }
 
+    private static final String PROPOSAL_RECEIPT_FILENAME = "proposal_receipt.json";
+
     private static File findLatestReceiptFile(String caseDirectory) {
         File reportsDir = new File(caseDirectory, "Reports");
         if (!reportsDir.isDirectory()) {
@@ -298,15 +394,14 @@ public final class UploadSnapshot {
         File best = null;
         long bestTime = -1;
         for (File dir : subDirs) {
-            File r =
-                    new File(
-                            dir,
-                            CASE_DATA_EXTRACT_DIR + File.separator + UploadReceiptWriter.RECEIPT_FILENAME);
-            if (r.isFile()) {
-                long t = r.lastModified();
-                if (t > bestTime) {
-                    bestTime = t;
-                    best = r;
+            for (String name : new String[]{UploadReceiptWriter.RECEIPT_FILENAME, PROPOSAL_RECEIPT_FILENAME}) {
+                File r = new File(dir, CASE_DATA_EXTRACT_DIR + File.separator + name);
+                if (r.isFile()) {
+                    long t = r.lastModified();
+                    if (t > bestTime) {
+                        bestTime = t;
+                        best = r;
+                    }
                 }
             }
         }
@@ -482,6 +577,9 @@ public final class UploadSnapshot {
         String errorKind;
         String errorMessage;
         int httpStatus;
+        String proposalId;
+        String pendingKey;
+        String oldRecordHash;
         long receiptSourceLastModifiedMs;
     }
 }

@@ -364,11 +364,8 @@ def build_verification_report_pdf(
                 _mono_paragraph(record.get("aggregate_hash") or "—"),
             ],
         ]
-        cj = record.get("case_json")
-        if cj is not None:
-            r_rows.append(
-                [_p("case_json", lbl_style), _mono_paragraph(str(cj), max_chars=6000)]
-            )
+        # case_json is not placed in this Table: a tall cell cannot split across pages
+        # and ReportLab raises LayoutError (e.g. full Autopsy export JSON).
         t_r = Table(r_rows, colWidths=[34 * mm, doc.width - 34 * mm])
     else:
         t_r = Table(
@@ -388,6 +385,27 @@ def build_verification_report_pdf(
         )
     )
     story.append(t_r)
+
+    if isinstance(record, dict) and record.get("case_json") is not None:
+        cj_raw = str(record.get("case_json"))
+        pdf_cj_max = 10_000
+        truncated = len(cj_raw) > pdf_cj_max
+        cj_body = cj_raw[:pdf_cj_max] + ("…" if truncated else "")
+        story.append(Spacer(1, 5 * mm))
+        story.append(
+            _p(
+                "case_json (PDF excerpt — use Download Report (JSON) on the Query tab for the full payload)"
+                + (" [truncated]" if truncated else ""),
+                lbl_style,
+            )
+        )
+        story.append(
+            _mono_paragraph(
+                cj_body,
+                max_chars=max(len(cj_body), pdf_cj_max) + 16,
+                wrap_width=82,
+            )
+        )
 
     if isinstance(integrity, dict):
         story.append(Spacer(1, 5 * mm))

@@ -374,12 +374,41 @@ async function getBlockTimestampUtcIso(blockNumber) {
   return new Date(sec * 1000).toISOString();
 }
 
+/**
+ * Block-sync barrier: poll until block height increments beyond `startBlock`.
+ * Used by the upload route (X-Block-Sync-Before-Chain header) to normalise
+ * chain-timing measurements — ensures each chainMs sample starts right after
+ * a fresh block, eliminating the bimodal distribution caused by variable
+ * preceding I/O (e.g. large-file recordStoreMs) landing at random points in
+ * the block interval.
+ *
+ * @param {number} startBlock block height to wait past (from a preceding getBlockNumber call)
+ * @param {{ pollMs?: number, timeoutMs?: number }} opts
+ * @returns {Promise<number>} the new block height
+ */
+async function awaitNextBlock(startBlock, opts = {}) {
+  const pollMs = Math.max(50, Number(opts.pollMs) || 100);
+  const timeoutMs = Math.max(1000, Number(opts.timeoutMs) || 8000);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const current = await getBlockNumber();
+    if (current > startBlock) {
+      return current;
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  const err = new Error(`awaitNextBlock: timeout after ${timeoutMs} ms (startBlock=${startBlock})`);
+  err.code = 'BLOCK_SYNC_TIMEOUT';
+  throw err;
+}
+
 module.exports = {
   gatewayPemPath,
   isChainConfigured,
   getChainConfigGaps,
   getBlockNumber,
   getBlockTimestampUtcIso,
+  awaitNextBlock,
   getWeb3jService,
   insertRecord,
   updateRecord,

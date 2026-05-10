@@ -123,15 +123,15 @@ npm run seed-roles
 
 ## Phase 5 · CaseRegistry upload signing (S5.4)
 
-**`src/services/caseRegistryTx.js`** — after the usual **`t_case_hash`** CRUD insert succeeds, optionally calls **`CaseRegistry.createRecord`** using the police user’s **`data/keystore/<userId>.enc`** (decrypted with **`signingPassword`** in the JSON body) and a temporary FISCO **`ecrandom`** account (same pattern as contract integration tests).
+**`src/services/caseRegistryTx.js`** — by default (**`CHAIN_MODE=contract`**), uploads first insert into **`t_case_hash`** (CRUD) then **`CaseRegistry.createRecord`**. **`UPLOAD_SINGLE_CHAIN_TX=1`** skips that CRUD insert and sends only **`CaseRegistry.createRecord`** (one chain transaction). The police user **`data/keystore/<userId>.enc`** (**`signingPassword`** in the JSON body; temporary **`ecrandom`** account) performs the Registry write.
 
-Enable with **`CHAIN_MODE=contract`** (or legacy **`UPLOAD_USE_CASE_REGISTRY=1`**) and a valid **`CASE_REGISTRY_ADDR`**. **`POST /api/upload`** must then include **`signingPassword`** (login password used when **`npm run seed-roles`** encrypted the key). On success the JSON response adds **`caseRegistryTxHash`** and **`caseRegistryBlockNumber`**. Wrong password → **401**; duplicate **`indexHash`** on the contract → **409** (local store is rolled back; the CRUD row may still exist — see code comments).
+Enable with **`CHAIN_MODE=contract`** (or legacy **`UPLOAD_USE_CASE_REGISTRY=1`**) and a valid **`CASE_REGISTRY_ADDR`**. **`POST /api/upload`** must then include **`signingPassword`** (login password used when **`npm run seed-roles`** encrypted the key). On success the JSON response adds **`caseRegistryTxHash`** and **`caseRegistryBlockNumber`** (with **`UPLOAD_SINGLE_CHAIN_TX=1`**, **`txHash`** / **`blockNumber`** mirror that Registry receipt). Wrong password → **401**; duplicate **`indexHash`** on the contract → **409** (local store is rolled back; depending on flags a CRUD **`t_case_hash`** row may still exist — see code comments).
 
 **`npm test`** includes **`test/caseRegistryTx.test.js`** (bytes32 normalization).
 
 ## Phase 6 · CHAIN_MODE + smoke regression (S6.1 / S6.2)
 
-**`CHAIN_MODE`** — **`contract`** (default): when **`CASE_REGISTRY_ADDR`** is set, **`POST /api/upload`** inserts into **`t_case_hash`** then **`chain.createCaseRegistryRecordFromKeystore`** (**`caseRegistryTx`**, S5.4); requires **`signingPassword`**. **`crud`**: table insert only (no CaseRegistry tx on upload).
+**`CHAIN_MODE`** — **`contract`** (default): when **`CASE_REGISTRY_ADDR`** is set, **`POST /api/upload`** inserts into **`t_case_hash`** then **`chain.createCaseRegistryRecordFromKeystore`** (**`caseRegistryTx`**, S5.4), unless **`UPLOAD_SINGLE_CHAIN_TX=1`** (Registry-only, one chain tx); requires **`signingPassword`** in all contract-upload variants. **`crud`**: table insert only (no CaseRegistry tx on upload).
 
 **`npm run smoke`** runs **twelve** checks: six with **`CHAIN_MODE=contract`** (**CaseRegistry** mocked) plus six with **`CHAIN_MODE=crud`** (table-only path).
 

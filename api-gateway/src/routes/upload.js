@@ -37,6 +37,7 @@ function uploadTimingEnabled(req) {
   return Boolean(config.uploadTimingInResponse);
 }
 
+
 /**
  * POST /api/upload — police + one-time OTP (X-Auth-Token).
  * Body: caseId, examiner, aggregateHash, generatedAt, caseJson (string: full Autopsy export JSON).
@@ -100,50 +101,67 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     err.status = 400;
     return next(err);
   }
+  const integrityMs = timingEnabled && tIntegrity0 != null ? Date.now() - tIntegrity0 : 0;
 
   const caseId = String(caseIdRaw).trim();
   const ex = String(examiner);
   const agg = String(aggregateHash);
   const gen = String(generatedAt);
 
+  const tHash0 = timingEnabled ? Date.now() : null;
   const indexHashRaw = hashOnly.computeIndexHash(caseId);
   const recordHashRaw = hashOnly.computeRecordHash(caseId, caseJson, agg, ex, gen);
+  const localHashMs = timingEnabled && tHash0 != null ? Date.now() - tHash0 : 0;
 
   const recordStore = getDefaultRecordStore();
 
+  let recordStoreMs = 0;
   try {
+    const tSave0 = timingEnabled ? Date.now() : null;
     recordStore.save(caseId, caseJson, agg, ex, gen);
+    if (timingEnabled && tSave0 != null) {
+      recordStoreMs = Date.now() - tSave0;
+    }
   } catch (e) {
     return next(e);
   }
 
-  const integrityMs = timingEnabled && tIntegrity0 != null ? Date.now() - tIntegrity0 : 0;
-
   try {
-    const tChain0 = timingEnabled ? Date.now() : null;
-    const { txHash, blockNumber } = await chain.insertRecord({
-      indexHash: indexHashRaw,
-      recordHash: recordHashRaw
-    });
-    const chainMs = timingEnabled && tChain0 != null ? Date.now() - tChain0 : 0;
+    const skipCrudInsert = config.uploadSkipsCrudInsert();
 
-    try {
-      recordStore.mergeFields(caseId, {
-        crud_tx_hash: txHash,
-        crud_block_number: blockNumber
-      });
-    } catch (e) {
-      try {
-        recordStore.remove(caseId);
-      } catch (_) {
-        /* best-effort rollback */
-      }
-      return next(e);
-    }
-
+    let txHash = null;
+    let blockNumber = null;
+    let crudChainMs = 0;
     let caseRegistryTxHash;
     let caseRegistryBlockNumber;
     let caseRegistryMs = 0;
+
+    if (!skipCrudInsert) {
+      const tChain0 = timingEnabled ? Date.now() : null;
+      const crudIns = await chain.insertRecord({
+        indexHash: indexHashRaw,
+        recordHash: recordHashRaw
+      });
+      txHash = crudIns.txHash;
+      blockNumber = crudIns.blockNumber;
+      crudChainMs =
+        timingEnabled && tChain0 != null ? Date.now() - tChain0 : 0;
+
+      try {
+        recordStore.mergeFields(caseId, {
+          crud_tx_hash: txHash,
+          crud_block_number: blockNumber
+        });
+      } catch (e) {
+        try {
+          recordStore.remove(caseId);
+        } catch (_) {
+          /* best-effort rollback */
+        }
+        return next(e);
+      }
+    }
+
     if (contractMode) {
       try {
         const tReg0 = timingEnabled ? Date.now() : null;
@@ -170,6 +188,10 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
             /* best-effort rollback */
           }
           return next(mergeErr);
+        }
+        if (skipCrudInsert) {
+          txHash = caseRegistryTxHash;
+          blockNumber = caseRegistryBlockNumber;
         }
       } catch (e) {
         try {
@@ -242,11 +264,14 @@ router.post('/api/upload', requirePoliceToken, async (req, res, next) => {
     };
 
     if (timingEnabled && requestId) {
+      const chainMsForTiming = skipCrudInsert ? caseRegistryMs : crudChainMs;
       const timing = {
         integrityMs,
-        chainMs,
+        localHashMs,
+        recordStoreMs,
+        chainMs: chainMsForTiming,
         totalMs,
-        ...(contractMode ? { caseRegistryMs } : {})
+        ...(contractMode && !skipCrudInsert ? { caseRegistryMs } : {})
       };
       logger.info(
         { requestId, caseId, timing, blockTimestampUtc },

@@ -472,6 +472,8 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             } catch (IOException ioe) {
                 LOGGER.log(Level.WARNING, "Could not write proposal_receipt.json", ioe);
             }
+            CaseEventRecorder.getInstance()
+                    .setLastUpload(UploadSnapshot.fromProposalSuccess(caseId, started, ended, rtt, resp));
             LOGGER.log(
                     Level.INFO,
                     "Gateway propose succeeded caseId={0} proposalId={1} tx={2} clientRoundTripMs={3}",
@@ -487,6 +489,8 @@ public final class CaseDataExtractReportModule implements GeneralReportModule {
             } catch (IOException ioe) {
                 LOGGER.log(Level.WARNING, "Could not write proposal_receipt.json", ioe);
             }
+            CaseEventRecorder.getInstance()
+                    .setLastUpload(UploadSnapshot.fromProposalFailure(caseId, started, ended, rtt, e));
             String detail = summarizeProposalFailure(e);
             LOGGER.log(
                     Level.WARNING,
